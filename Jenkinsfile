@@ -1,25 +1,54 @@
 pipeline {
     agent any
 
+    tools {
+        nodejs 'NodeJS'   // Make sure NodeJS is configured in Jenkins
+    }
+
     stages {
-        stage('Clone') {
+
+        stage('Checkout') {
             steps {
-                git 'https://github.com/Pranav-kri89/Blood-Donar.git'
+                // Jenkins already does checkout, but this ensures consistency
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                echo 'Installing dependencies...'
+                bat 'npm install'
             }
         }
 
         stage('Build') {
             steps {
-                echo 'Installing dependencies...'
-                sh 'npm install'
+                echo 'Building project...'
+                bat 'npm run build'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                echo 'Running tests...'
+                bat 'npm test'
             }
         }
 
         stage('Run') {
             steps {
-                echo 'Starting app...'
-                sh 'npm start'
+                echo 'Starting application...'
+                bat 'npm start'
             }
+        }
+    }
+
+    post {
+        success {
+            echo 'Build completed successfully 🎉'
+        }
+        failure {
+            echo 'Build failed ❌'
         }
     }
 }
