@@ -18,6 +18,8 @@ function DonorDashboard() {
     const [loadingNotifs, setLoadingNotifs] = useState(false);
     const [myDonations, setMyDonations] = useState([]);
     const [loadingDonations, setLoadingDonations] = useState(false);
+    const [myRequests, setMyRequests] = useState([]);
+    const [loadingMyRequests, setLoadingMyRequests] = useState(false);
 
     const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
     const cities = ['Bantwal', 'Belthangady', 'Dharmasthala', 'Kadaba', 'Kanhangad', 'Kasaragod', 'Kundapura', 'Mangaluru', 'Manjeshwar', 'Manipal', 'Moodbidri', 'Mulki', 'Puttur', 'Sullia', 'Surathkal', 'Udupi', 'Uppala', 'Vitla'];
@@ -66,11 +68,27 @@ function DonorDashboard() {
             }
         };
 
+        const fetchMyRequests = async () => {
+            if (!token) return;
+            setLoadingMyRequests(true);
+            try {
+                const config = { headers: { Authorization: `Bearer ${token}` } };
+                const res = await axios.get('/api/requests/my', config);
+                setMyRequests(res.data);
+            } catch (err) {
+                console.error('Failed to load my requests');
+            } finally {
+                setLoadingMyRequests(false);
+            }
+        };
+
         fetchNotifications();
         fetchMyDonations();
+        fetchMyRequests();
         const interval = setInterval(() => {
             fetchNotifications();
             fetchMyDonations();
+            fetchMyRequests();
         }, 30000);
         return () => clearInterval(interval);
     }, [token]);
@@ -87,6 +105,20 @@ function DonorDashboard() {
             setMyDonations(res.data);
         } catch (err) {
             alert(err.response?.data?.message || 'Failed to accept request');
+        }
+    };
+
+    const handleStatusUpdate = async (id, newStatus) => {
+        if (!window.confirm(`Mark this request as ${newStatus}?`)) return;
+
+        try {
+            await axios.put(`/api/requests/${id}/status`, { status: newStatus }, config);
+            const res = await axios.get('/api/requests/my', config);
+            setMyRequests(res.data);
+            alert(`Request marked as ${newStatus}!`);
+        } catch (err) {
+            console.error('Failed to update status', err);
+            alert(`Failed to update status: ${err.response?.data?.message || err.message}`);
         }
     };
 
@@ -312,6 +344,93 @@ function DonorDashboard() {
                                     </div>
                                 </div>
                             ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* My Blood Requests (As a Requester) */}
+                <div className="card" style={{ gridColumn: '1 / -1' }}>
+                    <h3 style={{ marginBottom: '1rem', fontWeight: 600 }}>My Blood Requests</h3>
+                    {loadingMyRequests ? (
+                        <p style={{ color: 'var(--text-muted)' }}>Loading your requests...</p>
+                    ) : myRequests.length === 0 ? (
+                        <p style={{ color: 'var(--text-muted)' }}>You haven't requested any blood. If you need blood, go to the Search Donors page to create a request.</p>
+                    ) : (
+                        <div className="table-wrapper">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Patient</th>
+                                        <th>Blood Group</th>
+                                        <th>Hospital</th>
+                                        <th>City</th>
+                                        <th>Urgency</th>
+                                        <th>Donor</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {myRequests.map(req => (
+                                        <tr key={req._id}>
+                                            <td style={{ fontWeight: 600 }}>{req.patientName}</td>
+                                            <td><span className="blood-group-badge">{req.bloodGroup}</span></td>
+                                            <td>{req.hospital}</td>
+                                            <td>{req.city}</td>
+                                            <td>
+                                                <span className={`status-badge ${req.urgency}`}>
+                                                    {req.urgency}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                {req.donor ? (
+                                                    <div style={{ fontSize: '0.85rem' }}>
+                                                        <strong>{req.donor.name}</strong>
+                                                        <div style={{ color: 'var(--text-muted)' }}>{req.donor.phone}</div>
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ color: 'var(--text-muted)' }}>-</span>
+                                                )}
+                                            </td>
+                                            <td>
+                                                <span className={`status-badge ${req.status}`}>
+                                                    {req.status}
+                                                </span>
+                                            </td>
+                                            <td>{new Date(req.createdAt).toLocaleDateString()}</td>
+                                            <td>
+                                                {(req.status === 'pending' || req.status === 'accepted') && (
+                                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                                        {req.status === 'accepted' && (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    handleStatusUpdate(req._id, 'fulfilled');
+                                                                }}
+                                                                className="btn btn-sm btn-success"
+                                                                title="Mark as Fulfilled"
+                                                            >
+                                                                ✓ Fulfilled
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                handleStatusUpdate(req._id, 'cancelled');
+                                                            }}
+                                                            className="btn btn-sm btn-danger"
+                                                            title="Cancel Request"
+                                                        >
+                                                            ✕ Cancel
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
                 </div>
