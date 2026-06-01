@@ -358,21 +358,8 @@ function Register() {
                         )}
                     </div>
 
-                    <div className="form-group">
-                        <label>Register as</label>
-                        <select
-                            name="role"
-                            className="form-control"
-                            value={formData.role}
-                            onChange={handleChange}
-                        >
-                            <option value="donor">Blood Donor</option>
-                            <option value="requester">Blood Requester</option>
-                        </select>
-                    </div>
 
-                    {formData.role === 'donor' && (
-                        <>
+
                             <div className="form-row">
                                 <div className="form-group">
                                     <label>Blood Group</label>
@@ -403,8 +390,6 @@ function Register() {
                                     </select>
                                 </div>
                             </div>
-                        </>
-                    )}
 
                     <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
                         {loading ? 'Creating Account...' : 'Create Account'}

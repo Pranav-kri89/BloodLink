@@ -34,7 +34,7 @@ function HomePage() {
                         </Link>
                     ) : (
                         <Link
-                            to={user.role === 'admin' ? '/admin' : user.role === 'donor' ? '/donor-dashboard' : '/requester-dashboard'}
+                            to={user.role === 'admin' ? '/admin' : '/donor-dashboard'}
                             className="btn btn-secondary"
                         >
                             📊 My Dashboard

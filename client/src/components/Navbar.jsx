@@ -40,14 +40,8 @@ function Navbar() {
                                 Find Donors
                             </Link>
 
-                            {user.role === 'donor' && (
+                            {user.role !== 'admin' && (
                                 <Link to="/donor-dashboard" className={isActive('/donor-dashboard')} onClick={() => setMenuOpen(false)}>
-                                    My Dashboard
-                                </Link>
-                            )}
-
-                            {user.role === 'requester' && (
-                                <Link to="/requester-dashboard" className={isActive('/requester-dashboard')} onClick={() => setMenuOpen(false)}>
                                     My Dashboard
                                 </Link>
                             )}
