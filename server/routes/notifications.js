@@ -1,16 +1,21 @@
 const express = require('express');
 const router = express.Router();
-const Notification = require('../models/Notification');
+const { prisma } = require('../config/db');
 const { protect } = require('../middleware/auth');
 
 // @route   GET /api/notifications
 // @desc    Get all notifications for the logged-in donor
 router.get('/', protect, async (req, res) => {
     try {
-        const notifications = await Notification.find({ recipient: req.user._id })
-            .sort({ createdAt: -1 })
-            .limit(50);
-        res.json(notifications);
+        const notifications = await prisma.notification.findMany({
+            where: { recipientId: req.user.id },
+            orderBy: { createdAt: 'desc' },
+            take: 50
+        });
+        
+        // Map id to _id
+        const mapped = notifications.map(n => ({ ...n, _id: n.id, bloodRequest: n.bloodRequestId }));
+        res.json(mapped);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -20,7 +25,9 @@ router.get('/', protect, async (req, res) => {
 // @desc    Get count of unread notifications
 router.get('/unread-count', protect, async (req, res) => {
     try {
-        const count = await Notification.countDocuments({ recipient: req.user._id, read: false });
+        const count = await prisma.notification.count({
+            where: { recipientId: req.user.id, read: false }
+        });
         res.json({ count });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -31,15 +38,18 @@ router.get('/unread-count', protect, async (req, res) => {
 // @desc    Mark a notification as read
 router.put('/:id/read', protect, async (req, res) => {
     try {
-        const notification = await Notification.findOneAndUpdate(
-            { _id: req.params.id, recipient: req.user._id },
-            { read: true },
-            { new: true }
-        );
-        if (!notification) {
+        const notification = await prisma.notification.updateMany({
+            where: { id: req.params.id, recipientId: req.user.id },
+            data: { read: true }
+        });
+        
+        if (notification.count === 0) {
             return res.status(404).json({ message: 'Notification not found' });
         }
-        res.json(notification);
+        
+        // Fetch the updated one to return
+        const updated = await prisma.notification.findUnique({ where: { id: req.params.id } });
+        res.json({ ...updated, _id: updated.id, bloodRequest: updated.bloodRequestId });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -49,10 +59,10 @@ router.put('/:id/read', protect, async (req, res) => {
 // @desc    Mark all notifications as read
 router.put('/read-all', protect, async (req, res) => {
     try {
-        await Notification.updateMany(
-            { recipient: req.user._id, read: false },
-            { read: true }
-        );
+        await prisma.notification.updateMany({
+            where: { recipientId: req.user.id, read: false },
+            data: { read: true }
+        });
         res.json({ message: 'All notifications marked as read' });
     } catch (error) {
         res.status(500).json({ message: error.message });

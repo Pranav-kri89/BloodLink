@@ -1,31 +1,39 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
-const BloodRequest = require('../models/BloodRequest');
+const { prisma } = require('../config/db');
 const { protect, adminOnly } = require('../middleware/auth');
 
 // @route   GET /api/admin/stats
 // @desc    Get dashboard statistics
 router.get('/stats', protect, adminOnly, async (req, res) => {
     try {
-        const totalDonors = await User.countDocuments({ role: 'donor' });
-        const availableDonors = await User.countDocuments({ role: 'donor', available: true });
-        const totalRequests = await BloodRequest.countDocuments();
-        const pendingRequests = await BloodRequest.countDocuments({ status: 'pending' });
-        const fulfilledRequests = await BloodRequest.countDocuments({ status: 'fulfilled' });
+        const totalDonors = await prisma.user.count({ where: { role: 'donor' } });
+        const availableDonors = await prisma.user.count({ where: { role: 'donor', available: true } });
+        const totalRequests = await prisma.bloodRequest.count();
+        const pendingRequests = await prisma.bloodRequest.count({ where: { status: 'pending' } });
+        const fulfilledRequests = await prisma.bloodRequest.count({ where: { status: 'fulfilled' } });
 
         // Donors by blood group
-        const donorsByBloodGroup = await User.aggregate([
-            { $match: { role: 'donor' } },
-            { $group: { _id: '$bloodGroup', count: { $sum: 1 } } },
-            { $sort: { _id: 1 } }
-        ]);
+        const donorsByBloodGroupRaw = await prisma.user.groupBy({
+            by: ['bloodGroup'],
+            where: { role: 'donor' },
+            _count: { bloodGroup: true },
+            orderBy: { bloodGroup: 'asc' }
+        });
+        
+        const donorsByBloodGroup = donorsByBloodGroupRaw.map(g => ({
+            _id: g.bloodGroup,
+            count: g._count.bloodGroup
+        }));
 
         // Recent requests
-        const recentRequests = await BloodRequest.find()
-            .populate('requester', 'name email')
-            .sort({ createdAt: -1 })
-            .limit(5);
+        const recentRequests = await prisma.bloodRequest.findMany({
+            include: {
+                requester: { select: { name: true, email: true, id: true } }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 5
+        });
 
         res.json({
             totalDonors,
@@ -34,7 +42,7 @@ router.get('/stats', protect, adminOnly, async (req, res) => {
             pendingRequests,
             fulfilledRequests,
             donorsByBloodGroup,
-            recentRequests
+            recentRequests: recentRequests.map(r => ({ ...r, _id: r.id, requester: r.requester ? { ...r.requester, _id: r.requester.id } : null }))
         });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -45,10 +53,16 @@ router.get('/stats', protect, adminOnly, async (req, res) => {
 // @desc    Get all donors
 router.get('/donors', protect, adminOnly, async (req, res) => {
     try {
-        const donors = await User.find({ role: 'donor' })
-            .select('-password')
-            .sort({ createdAt: -1 });
-        res.json(donors);
+        const donors = await prisma.user.findMany({
+            where: { role: 'donor' },
+            select: {
+                id: true, name: true, email: true, phone: true, role: true,
+                bloodGroup: true, city: true, available: true, lastDonationDate: true,
+                points: true, createdAt: true, updatedAt: true
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(donors.map(d => ({ ...d, _id: d.id })));
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -58,10 +72,13 @@ router.get('/donors', protect, adminOnly, async (req, res) => {
 // @desc    Get all blood requests
 router.get('/requests', protect, adminOnly, async (req, res) => {
     try {
-        const requests = await BloodRequest.find()
-            .populate('requester', 'name email phone')
-            .sort({ createdAt: -1 });
-        res.json(requests);
+        const requests = await prisma.bloodRequest.findMany({
+            include: {
+                requester: { select: { name: true, email: true, phone: true, id: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(requests.map(r => ({ ...r, _id: r.id, requester: r.requester ? { ...r.requester, _id: r.requester.id } : null })));
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -71,11 +88,11 @@ router.get('/requests', protect, adminOnly, async (req, res) => {
 // @desc    Delete a donor
 router.delete('/donors/:id', protect, adminOnly, async (req, res) => {
     try {
-        const user = await User.findById(req.params.id);
+        const user = await prisma.user.findUnique({ where: { id: req.params.id } });
         if (!user) {
             return res.status(404).json({ message: 'Donor not found' });
         }
-        await User.findByIdAndDelete(req.params.id);
+        await prisma.user.delete({ where: { id: req.params.id } });
         res.json({ message: 'Donor removed successfully' });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -86,14 +103,16 @@ router.delete('/donors/:id', protect, adminOnly, async (req, res) => {
 // @desc    Update request status
 router.put('/requests/:id', protect, adminOnly, async (req, res) => {
     try {
-        const request = await BloodRequest.findById(req.params.id);
+        const request = await prisma.bloodRequest.findUnique({ where: { id: req.params.id } });
         if (!request) {
             return res.status(404).json({ message: 'Request not found' });
         }
 
-        request.status = req.body.status || request.status;
-        const updated = await request.save();
-        res.json(updated);
+        const updated = await prisma.bloodRequest.update({
+            where: { id: req.params.id },
+            data: { status: req.body.status || request.status }
+        });
+        res.json({ ...updated, _id: updated.id });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

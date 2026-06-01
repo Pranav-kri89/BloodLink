@@ -1,10 +1,6 @@
-
 const express = require('express');
 const router = express.Router();
-const BloodRequest = require('../models/BloodRequest');
-const User = require('../models/User');
-const Notification = require('../models/Notification');
-
+const { prisma } = require('../config/db');
 const { protect } = require('../middleware/auth');
 const { sendDonorNotification } = require('../utils/sendEmail');
 const { sendSMSNotification } = require('../utils/smsService');
@@ -17,55 +13,71 @@ router.post('/', protect, async (req, res) => {
     try {
         const { patientName, bloodGroup, city, hospital, contactNumber, unitsNeeded, urgency } = req.body;
 
-        const request = await BloodRequest.create({
-            requester: req.user._id,
-            patientName,
-            bloodGroup,
-            city,
-            hospital,
-            contactNumber,
-            unitsNeeded: unitsNeeded || 1,
-            urgency: urgency || 'normal'
+        const request = await prisma.bloodRequest.create({
+            data: {
+                requesterId: req.user.id,
+                patientName,
+                bloodGroup,
+                city,
+                hospital,
+                contactNumber,
+                unitsNeeded: unitsNeeded || 1,
+                urgency: urgency || 'normal'
+            }
         });
 
         // Find matching available donors (same blood group + same city + eligible)
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - DONATION_COOLDOWN_DAYS);
 
-        const matchingDonors = await User.find({
-            role: 'donor',
-            available: true,
-            bloodGroup: bloodGroup,
-            city: new RegExp(`^${city}$`, 'i'),
-            $or: [
-                { lastDonationDate: { $exists: false } },
-                { lastDonationDate: null },
-                { lastDonationDate: { $lte: cutoffDate } }
-            ]
-        }).select('name email phone');
+        const matchingDonors = await prisma.user.findMany({
+            where: {
+                role: 'donor',
+                available: true,
+                bloodGroup: bloodGroup,
+                city: {
+                    equals: city,
+                    mode: 'insensitive' // case-insensitive match
+                },
+                OR: [
+                    { lastDonationDate: null },
+                    { lastDonationDate: { lte: cutoffDate } }
+                ]
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true
+            }
+        });
 
         // Create in-app notifications for matching donors
         const urgencyLabel = (urgency || 'normal').charAt(0).toUpperCase() + (urgency || 'normal').slice(1);
-        const notificationPromises = matchingDonors.map(donor =>
-            Notification.create({
-                recipient: donor._id,
-                type: 'blood_request',
-                bloodRequest: request._id,
-                title: `${urgencyLabel} Blood Request - ${bloodGroup} needed`,
-                message: `${patientName} needs ${unitsNeeded || 1} unit(s) of ${bloodGroup} blood at ${hospital}, ${city}.`,
-                requesterName: req.user.name,
-                requesterEmail: req.user.email,
-                requesterPhone: req.user.phone || '',
-                patientName,
-                bloodGroup,
-                city,
-                hospital,
-                urgency: urgency || 'normal',
-                unitsNeeded: unitsNeeded || 1,
-                contactNumber
-            })
-        );
-        await Promise.allSettled(notificationPromises);
+        
+        const notificationsData = matchingDonors.map(donor => ({
+            recipientId: donor.id,
+            type: 'blood_request',
+            bloodRequestId: request.id,
+            title: `${urgencyLabel} Blood Request - ${bloodGroup} needed`,
+            message: `${patientName} needs ${unitsNeeded || 1} unit(s) of ${bloodGroup} blood at ${hospital}, ${city}.`,
+            requesterName: req.user.name,
+            requesterEmail: req.user.email,
+            requesterPhone: req.user.phone || '',
+            patientName,
+            bloodGroup,
+            city,
+            hospital,
+            urgency: urgency || 'normal',
+            unitsNeeded: unitsNeeded || 1,
+            contactNumber
+        }));
+
+        if (notificationsData.length > 0) {
+            await prisma.notification.createMany({
+                data: notificationsData
+            });
+        }
 
         // Send email notifications (if configured)
         let notifiedCount = 0;
@@ -100,7 +112,8 @@ router.post('/', protect, async (req, res) => {
         console.log(`Blood request created.${matchingDonors.length} donors matched, ${notifiedCount} emailed, ${smsCount} SMS sent.`);
 
         res.status(201).json({
-            ...request.toObject(),
+            ...request,
+            _id: request.id,
             matchingDonors: matchingDonors.length,
             notifiedDonors: notifiedCount
         });
@@ -113,10 +126,24 @@ router.post('/', protect, async (req, res) => {
 // @desc    Get current user's requests
 router.get('/my', protect, async (req, res) => {
     try {
-        const requests = await BloodRequest.find({ requester: req.user._id })
-            .populate('donor', 'name phone')
-            .sort({ createdAt: -1 });
-        res.json(requests);
+        const requests = await prisma.bloodRequest.findMany({
+            where: { requesterId: req.user.id },
+            include: {
+                donor: {
+                    select: { name: true, phone: true, id: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        
+        // Map id to _id
+        const mappedRequests = requests.map(r => ({
+            ...r,
+            _id: r.id,
+            donor: r.donor ? { ...r.donor, _id: r.donor.id } : null
+        }));
+        
+        res.json(mappedRequests);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -126,50 +153,61 @@ router.get('/my', protect, async (req, res) => {
 // @desc    Update request status (for requester)
 router.put('/:id/status', protect, async (req, res) => {
     try {
-        const request = await BloodRequest.findById(req.params.id);
+        const request = await prisma.bloodRequest.findUnique({
+            where: { id: req.params.id }
+        });
 
         if (!request) {
             return res.status(404).json({ message: 'Request not found' });
         }
 
         // Ensure user is the owner of the request
-        if (request.requester.toString() !== req.user._id.toString()) {
+        if (request.requesterId !== req.user.id) {
             return res.status(401).json({ message: 'Not authorized to update this request' });
         }
 
         // If status is being changed to 'fulfilled'
         if (req.body.status === 'fulfilled' && request.status !== 'fulfilled') {
-            if (request.donor) {
-                const donor = await User.findById(request.donor);
+            if (request.donorId) {
+                const donor = await prisma.user.findUnique({ where: { id: request.donorId } });
                 if (donor) {
                     // Update donor stats
-                    donor.lastDonationDate = new Date();
-                    donor.available = false; // Mark as unavailable due to cooldown
-                    donor.points = (donor.points || 0) + 50; // Give 50 points
-                    await donor.save();
+                    await prisma.user.update({
+                        where: { id: donor.id },
+                        data: {
+                            lastDonationDate: new Date(),
+                            available: false,
+                            points: { increment: 50 }
+                        }
+                    });
 
                     // Create Reward Notification
-                    await Notification.create({
-                        recipient: donor._id,
-                        type: 'request_fulfilled',
-                        title: '🎉 You earned 50 Points!',
-                        message: `Thank you for donating blood to ${request.patientName}. You have been awarded 50 points and your donor level is growing!`,
-                        bloodRequest: request._id,
-                        patientName: request.patientName,
-                        hospital: request.hospital,
-                        city: request.city,
-                        urgency: request.urgency,
-                        unitsNeeded: request.unitsNeeded,
-                        contactNumber: request.contactNumber,
-                        requesterName: req.user.name
+                    await prisma.notification.create({
+                        data: {
+                            recipientId: donor.id,
+                            type: 'request_fulfilled',
+                            title: '🎉 You earned 50 Points!',
+                            message: `Thank you for donating blood to ${request.patientName}. You have been awarded 50 points and your donor level is growing!`,
+                            bloodRequestId: request.id,
+                            patientName: request.patientName,
+                            hospital: request.hospital,
+                            city: request.city,
+                            urgency: request.urgency,
+                            unitsNeeded: request.unitsNeeded,
+                            contactNumber: request.contactNumber,
+                            requesterName: req.user.name
+                        }
                     });
                 }
             }
         }
 
-        request.status = req.body.status || request.status;
-        const updatedRequest = await request.save();
-        res.json(updatedRequest);
+        const updatedRequest = await prisma.bloodRequest.update({
+            where: { id: request.id },
+            data: { status: req.body.status || request.status }
+        });
+        
+        res.json({ ...updatedRequest, _id: updatedRequest.id });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -179,7 +217,9 @@ router.put('/:id/status', protect, async (req, res) => {
 // @desc    Accept a blood request (for donor)
 router.put('/:id/accept', protect, async (req, res) => {
     try {
-        const request = await BloodRequest.findById(req.params.id);
+        const request = await prisma.bloodRequest.findUnique({
+            where: { id: req.params.id }
+        });
 
         if (!request) {
             return res.status(404).json({ message: 'Request not found' });
@@ -190,23 +230,29 @@ router.put('/:id/accept', protect, async (req, res) => {
         }
 
         // Link donor and change status
-        request.donor = req.user._id;
-        request.status = 'accepted';
-        await request.save();
-
-        // Notify the requester
-        await Notification.create({
-            recipient: request.requester,
-            type: 'request_accepted',
-            title: '🎉 Request Accepted!',
-            message: `${req.user.name} has accepted your blood request for ${request.patientName}. They will contact you shortly.`,
-            bloodRequest: request._id,
-            patientName: request.patientName,
-            donorName: req.user.name,
-            donorPhone: req.user.phone
+        const updatedRequest = await prisma.bloodRequest.update({
+            where: { id: request.id },
+            data: {
+                donorId: req.user.id,
+                status: 'accepted'
+            }
         });
 
-        res.json(request);
+        // Notify the requester
+        await prisma.notification.create({
+            data: {
+                recipientId: request.requesterId,
+                type: 'general', // Use general or add 'request_accepted' to schema enum later if needed. Schema says blood_request, request_fulfilled, general
+                title: '🎉 Request Accepted!',
+                message: `${req.user.name} has accepted your blood request for ${request.patientName}. They will contact you shortly.`,
+                bloodRequestId: request.id,
+                patientName: request.patientName,
+                requesterName: req.user.name,
+                requesterPhone: req.user.phone
+            }
+        });
+
+        res.json({ ...updatedRequest, _id: updatedRequest.id });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -216,10 +262,23 @@ router.put('/:id/accept', protect, async (req, res) => {
 // @desc    Get donor's accepted/fulfilled requests
 router.get('/donor/my', protect, async (req, res) => {
     try {
-        const requests = await BloodRequest.find({ donor: req.user._id })
-            .populate('requester', 'name phone')
-            .sort({ createdAt: -1 });
-        res.json(requests);
+        const requests = await prisma.bloodRequest.findMany({
+            where: { donorId: req.user.id },
+            include: {
+                requester: {
+                    select: { name: true, phone: true, id: true }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        
+        const mappedRequests = requests.map(r => ({
+            ...r,
+            _id: r.id,
+            requester: r.requester ? { ...r.requester, _id: r.requester.id } : null
+        }));
+        
+        res.json(mappedRequests);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }

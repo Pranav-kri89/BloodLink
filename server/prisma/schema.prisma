@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String          @id @default(uuid())
+  name             String
+  email            String          @unique
+  password         String
+  phone            String
+  role             String          @default("donor") // donor, requester, admin
+  bloodGroup       String          @default("")
+  city             String          @default("")
+  available        Boolean         @default(true)
+  lastDonationDate DateTime?
+  points           Int             @default(0)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  requestsMade     BloodRequest[]  @relation("Requester")
+  donationsAccepted BloodRequest[] @relation("Donor")
+  notifications    Notification[]
+}
+
+model BloodRequest {
+  id            String         @id @default(uuid())
+  patientName   String
+  bloodGroup    String
+  city          String
+  hospital      String
+  contactNumber String
+  unitsNeeded   Int            @default(1)
+  urgency       String         @default("normal") // normal, urgent, critical
+  status        String         @default("pending") // pending, accepted, fulfilled, cancelled
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  requesterId   String
+  requester     User           @relation("Requester", fields: [requesterId], references: [id])
+  
+  donorId       String?
+  donor         User?          @relation("Donor", fields: [donorId], references: [id])
+
+  notifications Notification[]
+}
+
+model Notification {
+  id             String        @id @default(uuid())
+  type           String        @default("blood_request") // blood_request, request_fulfilled, general
+  title          String
+  message        String
+  requesterName  String?
+  requesterEmail String?
+  requesterPhone String?
+  patientName    String?
+  bloodGroup     String?
+  city           String?
+  hospital       String?
+  urgency        String        @default("normal")
+  unitsNeeded    Int?
+  contactNumber  String?
+  read           Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  recipientId    String
+  recipient      User          @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  bloodRequestId String?
+  bloodRequest   BloodRequest? @relation(fields: [bloodRequestId], references: [id], onDelete: SetNull)
+}

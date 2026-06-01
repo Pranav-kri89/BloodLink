@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const User = require('../models/User');
+const { prisma } = require('../config/db');
 const { protect } = require('../middleware/auth');
 
 const DONATION_COOLDOWN_DAYS = 60;
@@ -10,25 +10,50 @@ const DONATION_COOLDOWN_DAYS = 60;
 router.get('/search', async (req, res) => {
     try {
         const { bloodGroup, city } = req.query;
-        const query = { role: 'donor', available: true };
-
-        if (bloodGroup) query.bloodGroup = bloodGroup;
-        if (city) query.city = new RegExp(city, 'i');
-
-        // Only return donors who are eligible (last donation >= 60 days ago or never donated)
+        
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - DONATION_COOLDOWN_DAYS);
-        query.$or = [
-            { lastDonationDate: { $exists: false } },
-            { lastDonationDate: null },
-            { lastDonationDate: { $lte: cutoffDate } }
-        ];
 
-        const donors = await User.find(query)
-            .select('-password')
-            .sort({ createdAt: -1 });
+        const whereClause = {
+            role: 'donor',
+            available: true,
+            OR: [
+                { lastDonationDate: null },
+                { lastDonationDate: { lte: cutoffDate } }
+            ]
+        };
 
-        res.json(donors);
+        if (bloodGroup) whereClause.bloodGroup = bloodGroup;
+        if (city) {
+            whereClause.city = {
+                contains: city,
+                mode: 'insensitive'
+            };
+        }
+
+        const donors = await prisma.user.findMany({
+            where: whereClause,
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                role: true,
+                bloodGroup: true,
+                city: true,
+                available: true,
+                lastDonationDate: true,
+                points: true,
+                createdAt: true,
+                updatedAt: true
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        // map id to _id
+        const mappedDonors = donors.map(d => ({ ...d, _id: d.id }));
+
+        res.json(mappedDonors);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
@@ -39,30 +64,38 @@ router.get('/search', async (req, res) => {
 router.put('/profile', protect, async (req, res) => {
     try {
         const { bloodGroup, city, lastDonationDate, phone, name } = req.body;
-        const user = await User.findById(req.user._id);
+        
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id }
+        });
 
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        if (name) user.name = name;
-        if (phone) user.phone = phone;
-        if (bloodGroup) user.bloodGroup = bloodGroup;
-        if (city) user.city = city;
+        const updateData = {};
+        if (name) updateData.name = name;
+        if (phone) updateData.phone = phone;
+        if (bloodGroup) updateData.bloodGroup = bloodGroup;
+        if (city) updateData.city = city;
+        
         if (lastDonationDate) {
-            user.lastDonationDate = lastDonationDate;
-            // Auto-check eligibility: if donated within 60 days, set unavailable
+            updateData.lastDonationDate = new Date(lastDonationDate);
+            // Auto-check eligibility
             const donationDate = new Date(lastDonationDate);
             const daysSinceDonation = Math.floor((Date.now() - donationDate) / (1000 * 60 * 60 * 24));
             if (daysSinceDonation < DONATION_COOLDOWN_DAYS) {
-                user.available = false;
+                updateData.available = false;
             }
         }
 
-        const updatedUser = await user.save();
+        const updatedUser = await prisma.user.update({
+            where: { id: user.id },
+            data: updateData
+        });
 
         res.json({
-            _id: updatedUser._id,
+            _id: updatedUser.id,
             name: updatedUser.name,
             email: updatedUser.email,
             phone: updatedUser.phone,
@@ -81,12 +114,15 @@ router.put('/profile', protect, async (req, res) => {
 // @desc    Toggle donor availability
 router.put('/availability', protect, async (req, res) => {
     try {
-        const user = await User.findById(req.user._id);
+        const user = await prisma.user.findUnique({
+            where: { id: req.user.id }
+        });
+        
         if (!user) {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        // Check 60-day cooldown before allowing toggle to available
+        // Check cooldown
         if (!user.available && user.lastDonationDate) {
             const daysSinceDonation = Math.floor((Date.now() - new Date(user.lastDonationDate)) / (1000 * 60 * 60 * 24));
             if (daysSinceDonation < DONATION_COOLDOWN_DAYS) {
@@ -99,10 +135,12 @@ router.put('/availability', protect, async (req, res) => {
             }
         }
 
-        user.available = !user.available;
-        await user.save();
+        const updatedUser = await prisma.user.update({
+            where: { id: user.id },
+            data: { available: !user.available }
+        });
 
-        res.json({ available: user.available });
+        res.json({ available: updatedUser.available });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
