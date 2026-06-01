@@ -2,6 +2,27 @@ import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
 
+const SkeletonDonorCard = () => (
+    <div className="donor-card">
+        <div className="donor-card-header">
+            <div className="skeleton skeleton-avatar"></div>
+            <div style={{ flex: 1 }}>
+                <div className="skeleton skeleton-text" style={{ width: '60%' }}></div>
+                <div className="skeleton skeleton-text" style={{ width: '80%' }}></div>
+            </div>
+        </div>
+        <div className="donor-card-body">
+            <div className="skeleton skeleton-text"></div>
+            <div className="skeleton skeleton-text"></div>
+            <div className="skeleton skeleton-text"></div>
+            <div className="skeleton skeleton-text short"></div>
+        </div>
+        <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center' }}>
+            <div className="skeleton skeleton-button"></div>
+        </div>
+    </div>
+);
+
 function SearchDonors() {
     const { user, token } = useAuth();
     const [filters, setFilters] = useState({ bloodGroup: '', city: '' });
@@ -171,8 +192,8 @@ function SearchDonors() {
 
             {/* Results */}
             {loading ? (
-                <div className="loading-container">
-                    <div className="spinner"></div>
+                <div className="donors-grid">
+                    {[1, 2, 3, 4, 5, 6].map(i => <SkeletonDonorCard key={i} />)}
                 </div>
             ) : searched && donors.length === 0 ? (
                 <div className="empty-state">
