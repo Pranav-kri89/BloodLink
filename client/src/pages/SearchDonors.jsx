@@ -104,6 +104,20 @@ function SearchDonors() {
         }
     };
 
+    const handleDirectRequest = (donor) => {
+        if (!user) {
+            alert('Please login to request blood');
+            return;
+        }
+        setRequestForm({
+            ...requestForm,
+            bloodGroup: donor.bloodGroup || '',
+            city: donor.city || '',
+            hospital: ''
+        });
+        setShowRequestModal(true);
+    };
+
     return (
         <div className="page-container fade-in">
             <div className="page-header">
@@ -206,6 +220,17 @@ function SearchDonors() {
                                     </div>
                                 )}
                             </div>
+                            {user && donor.available && (
+                                <div style={{ padding: '16px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'center' }}>
+                                    <button 
+                                        className="btn btn-primary" 
+                                        style={{ width: '100%' }}
+                                        onClick={() => handleDirectRequest(donor)}
+                                    >
+                                        🆘 Request Donor
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     ))}
                 </div>
