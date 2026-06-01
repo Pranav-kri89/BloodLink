@@ -16,6 +16,8 @@ function DonorDashboard() {
     const [saving, setSaving] = useState(false);
     const [notifications, setNotifications] = useState([]);
     const [loadingNotifs, setLoadingNotifs] = useState(false);
+    const [myDonations, setMyDonations] = useState([]);
+    const [loadingDonations, setLoadingDonations] = useState(false);
 
     const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
     const cities = ['Bantwal', 'Belthangady', 'Dharmasthala', 'Kadaba', 'Kanhangad', 'Kasaragod', 'Kundapura', 'Mangaluru', 'Manjeshwar', 'Manipal', 'Moodbidri', 'Mulki', 'Puttur', 'Sullia', 'Surathkal', 'Udupi', 'Uppala', 'Vitla'];
@@ -50,12 +52,43 @@ function DonorDashboard() {
                 setLoadingNotifs(false);
             }
         };
+        const fetchMyDonations = async () => {
+            if (!token) return;
+            setLoadingDonations(true);
+            try {
+                const config = { headers: { Authorization: `Bearer ${token}` } };
+                const res = await axios.get('/api/requests/donor/my', config);
+                setMyDonations(res.data);
+            } catch (err) {
+                console.error('Failed to load donations');
+            } finally {
+                setLoadingDonations(false);
+            }
+        };
+
         fetchNotifications();
-        const interval = setInterval(fetchNotifications, 30000);
+        fetchMyDonations();
+        const interval = setInterval(() => {
+            fetchNotifications();
+            fetchMyDonations();
+        }, 30000);
         return () => clearInterval(interval);
     }, [token]);
 
     const config = { headers: { Authorization: `Bearer ${token}` } };
+
+    const handleAcceptRequest = async (requestId) => {
+        if (!window.confirm("Are you sure you want to accept this request?")) return;
+        try {
+            await axios.put(`/api/requests/${requestId}/accept`, {}, config);
+            alert("Request accepted! The requester has been notified.");
+            // Refresh donations list
+            const res = await axios.get('/api/requests/donor/my', config);
+            setMyDonations(res.data);
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to accept request');
+        }
+    };
 
     const handleChange = (e) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -231,14 +264,54 @@ function DonorDashboard() {
                                             <div><span style={{ color: 'var(--text-muted)' }}>Requester:</span> <strong>{notif.requesterName}</strong></div>
                                         </div>
 
-                                        {!notif.read && (
-                                            <button onClick={() => markAsRead(notif._id)} style={{ marginTop: '10px', fontSize: '0.8rem', padding: '4px 14px', background: 'transparent', border: '1px solid var(--accent-green)', color: 'var(--accent-green)', borderRadius: '6px', cursor: 'pointer' }}>
-                                                Mark as read
-                                            </button>
-                                        )}
+                                        <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                                            {notif.type === 'blood_request' && (
+                                                <button onClick={() => handleAcceptRequest(notif.bloodRequest)} style={{ fontSize: '0.8rem', padding: '4px 14px', background: 'var(--primary)', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer' }}>
+                                                    ✓ Accept Request
+                                                </button>
+                                            )}
+                                            {!notif.read && (
+                                                <button onClick={() => markAsRead(notif._id)} style={{ fontSize: '0.8rem', padding: '4px 14px', background: 'transparent', border: '1px solid var(--accent-green)', color: 'var(--accent-green)', borderRadius: '6px', cursor: 'pointer' }}>
+                                                    Mark as read
+                                                </button>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })}
+                        </div>
+                    )}
+                </div>
+
+                {/* My Donations Panel */}
+                <div className="card">
+                    <h3 style={{ marginBottom: '1rem', fontWeight: 600 }}>My Donations</h3>
+                    {loadingDonations ? (
+                        <p style={{ color: 'var(--text-muted)' }}>Loading donations...</p>
+                    ) : myDonations.length === 0 ? (
+                        <p style={{ color: 'var(--text-muted)' }}>You haven't accepted any requests yet.</p>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {myDonations.map(donation => (
+                                <div key={donation._id} style={{
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '8px',
+                                    padding: '12px',
+                                    background: donation.status === 'fulfilled' ? '#f0fdf4' : 'var(--bg-secondary)'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                        <h4 style={{ margin: 0 }}>Patient: {donation.patientName}</h4>
+                                        <span className={`status-badge ${donation.status}`}>
+                                            {donation.status === 'fulfilled' ? 'Donated Successfully' : donation.status}
+                                        </span>
+                                    </div>
+                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                                        <p style={{ margin: '4px 0' }}>Hospital: {donation.hospital}, {donation.city}</p>
+                                        <p style={{ margin: '4px 0' }}>Requester: {donation.requester?.name} ({donation.requester?.phone})</p>
+                                        <p style={{ margin: '4px 0' }}>Date: {new Date(donation.createdAt).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
                     )}
                 </div>

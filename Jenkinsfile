@@ -1,17 +1,47 @@
 pipeline {
     agent any
 
+    tools {
+        nodejs "node"
+    }
+
     stages {
 
-        stage('Build') {
+        stage('Checkout') {
             steps {
-                echo 'Building project...'
+                git 'https://github.com/Pranav-kri89/Blood-Donar.git'
             }
         }
 
-        stage('Run') {
+        stage('Install Server Dependencies') {
             steps {
-                echo 'Pipeline working correctly'
+                dir('server') {
+                    sh 'npm install'
+                }
+            }
+        }
+
+        stage('Install Client Dependencies') {
+            steps {
+                dir('client') {
+                    sh 'npm install'
+                }
+            }
+        }
+
+        stage('Run Server') {
+            steps {
+                dir('server') {
+                    sh 'nohup npm start &'
+                }
+            }
+        }
+
+        stage('Run Client') {
+            steps {
+                dir('client') {
+                    sh 'nohup npm start &'
+                }
             }
         }
     }

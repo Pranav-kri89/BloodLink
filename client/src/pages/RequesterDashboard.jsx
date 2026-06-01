@@ -41,16 +41,11 @@ function RequesterDashboard() {
     };
 
     const handleStatusUpdate = async (id, newStatus) => {
-        let donorPhone = null;
-        if (newStatus === 'fulfilled') {
-            donorPhone = window.prompt("To credit the donor, please enter their phone number (optional):");
-        }
-
         if (!window.confirm(`Mark this request as ${newStatus}?`)) return;
 
         try {
             const config = { headers: { Authorization: `Bearer ${token}` } };
-            await axios.put(`/api/requests/${id}/status`, { status: newStatus, donorPhone }, config);
+            await axios.put(`/api/requests/${id}/status`, { status: newStatus }, config);
             fetchData(); // Refresh data
             alert(`Request marked as ${newStatus}!`);
         } catch (err) {
@@ -177,18 +172,20 @@ function RequesterDashboard() {
                                         </td>
                                         <td>{new Date(req.createdAt).toLocaleDateString()}</td>
                                         <td>
-                                            {req.status === 'pending' && (
+                                            {(req.status === 'pending' || req.status === 'accepted') && (
                                                 <div style={{ display: 'flex', gap: '8px' }}>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.preventDefault();
-                                                            handleStatusUpdate(req._id, 'fulfilled');
-                                                        }}
-                                                        className="btn btn-sm btn-success"
-                                                        title="Mark as Fulfilled"
-                                                    >
-                                                        ✓ Fulfilled
-                                                    </button>
+                                                    {req.status === 'accepted' && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.preventDefault();
+                                                                handleStatusUpdate(req._id, 'fulfilled');
+                                                            }}
+                                                            className="btn btn-sm btn-success"
+                                                            title="Mark as Fulfilled"
+                                                        >
+                                                            ✓ Fulfilled
+                                                        </button>
+                                                    )}
                                                     <button
                                                         onClick={(e) => {
                                                             e.preventDefault();

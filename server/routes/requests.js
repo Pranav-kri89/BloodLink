@@ -137,41 +137,89 @@ router.put('/:id/status', protect, async (req, res) => {
             return res.status(401).json({ message: 'Not authorized to update this request' });
         }
 
-        // If status is being changed to 'fulfilled' and donor info is provided
-        if (req.body.status === 'fulfilled' && req.body.donorPhone) {
-            const donor = await User.findOne({ phone: req.body.donorPhone, role: 'donor' });
+        // If status is being changed to 'fulfilled'
+        if (req.body.status === 'fulfilled' && request.status !== 'fulfilled') {
+            if (request.donor) {
+                const donor = await User.findById(request.donor);
+                if (donor) {
+                    // Update donor stats
+                    donor.lastDonationDate = new Date();
+                    donor.available = false; // Mark as unavailable due to cooldown
+                    donor.points = (donor.points || 0) + 50; // Give 50 points
+                    await donor.save();
 
-            if (donor) {
-                // Update donor stats
-                donor.lastDonationDate = new Date();
-                donor.available = false; // Mark as unavailable due to cooldown
-                donor.points = (donor.points || 0) + 50; // Give 50 points
-                await donor.save();
-
-                // Link donor to request
-                request.donor = donor._id;
-
-                // Create Reward Notification
-                await Notification.create({
-                    recipient: donor._id,
-                    type: 'request_fulfilled',
-                    title: '🎉 You earned 50 Points!',
-                    message: `Thank you for donating blood to ${request.patientName}. You have been awarded 50 points and your donor level is growing!`,
-                    bloodRequest: request._id,
-                    patientName: request.patientName,
-                    hospital: request.hospital,
-                    city: request.city,
-                    urgency: request.urgency,
-                    unitsNeeded: request.unitsNeeded,
-                    contactNumber: request.contactNumber,
-                    requesterName: req.user.name
-                });
+                    // Create Reward Notification
+                    await Notification.create({
+                        recipient: donor._id,
+                        type: 'request_fulfilled',
+                        title: '🎉 You earned 50 Points!',
+                        message: `Thank you for donating blood to ${request.patientName}. You have been awarded 50 points and your donor level is growing!`,
+                        bloodRequest: request._id,
+                        patientName: request.patientName,
+                        hospital: request.hospital,
+                        city: request.city,
+                        urgency: request.urgency,
+                        unitsNeeded: request.unitsNeeded,
+                        contactNumber: request.contactNumber,
+                        requesterName: req.user.name
+                    });
+                }
             }
         }
 
         request.status = req.body.status || request.status;
         const updatedRequest = await request.save();
         res.json(updatedRequest);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @route   PUT /api/requests/:id/accept
+// @desc    Accept a blood request (for donor)
+router.put('/:id/accept', protect, async (req, res) => {
+    try {
+        const request = await BloodRequest.findById(req.params.id);
+
+        if (!request) {
+            return res.status(404).json({ message: 'Request not found' });
+        }
+
+        if (request.status !== 'pending') {
+            return res.status(400).json({ message: 'Request is no longer pending' });
+        }
+
+        // Link donor and change status
+        request.donor = req.user._id;
+        request.status = 'accepted';
+        await request.save();
+
+        // Notify the requester
+        await Notification.create({
+            recipient: request.requester,
+            type: 'request_accepted',
+            title: '🎉 Request Accepted!',
+            message: `${req.user.name} has accepted your blood request for ${request.patientName}. They will contact you shortly.`,
+            bloodRequest: request._id,
+            patientName: request.patientName,
+            donorName: req.user.name,
+            donorPhone: req.user.phone
+        });
+
+        res.json(request);
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @route   GET /api/requests/donor/my
+// @desc    Get donor's accepted/fulfilled requests
+router.get('/donor/my', protect, async (req, res) => {
+    try {
+        const requests = await BloodRequest.find({ donor: req.user._id })
+            .populate('requester', 'name phone')
+            .sort({ createdAt: -1 });
+        res.json(requests);
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
