@@ -58,7 +58,10 @@ function SearchDonors() {
             if (filters.city) params.append('city', filters.city);
 
             const res = await axios.get(`/api/donors/search?${params.toString()}`);
-            setDonors(res.data);
+            
+            // Filter out the logged-in user so they don't see themselves
+            const results = user ? res.data.filter(d => d._id !== user._id) : res.data;
+            setDonors(results);
         } catch (err) {
             console.error('Search error:', err);
         } finally {
