@@ -60,9 +60,9 @@ export function AuthProvider({ children }) {
                 // and we never want to overwrite it with the Clerk avatar on login.
             }, config);
 
-            console.log("Sync response:", res.data);
+            console.log("Sync response:", res.data.user);
             console.log("USER FROM BACKEND:", res.data);
-            setUser(res.data);
+            setUser(res.data.user);
             setError(null);
         } catch (err) {
             console.error("syncUser error:", err);
