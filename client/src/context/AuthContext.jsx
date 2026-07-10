@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
 
     // Sync user with backend whenever Clerk session changes
     useEffect(() => {
-        console.error("DEBUG - AuthContext state:", { isLoaded, isSignedIn, clerkUser: !!clerkUser });
+        // console.error("DEBUG - AuthContext state:", { isLoaded, isSignedIn, clerkUser: !!clerkUser });
         if (!isLoaded) return;
 
         if (isSignedIn && clerkUser) {
@@ -49,7 +49,7 @@ export function AuthProvider({ children }) {
             const clerkToken = await getToken();
             console.log("Got clerk token");
             const config = { headers: { Authorization: `Bearer ${clerkToken}` } };
-            
+
             // Try to sync/fetch
             const res = await axios.post('/api/auth/sync', {
                 email: clerkUser.primaryEmailAddress?.emailAddress,
@@ -59,7 +59,7 @@ export function AuthProvider({ children }) {
                 // The user may have uploaded a custom profile picture via the dashboard,
                 // and we never want to overwrite it with the Clerk avatar on login.
             }, config);
-            
+
             console.log("Sync response:", res.data);
             setUser(res.data);
             setError(null);
