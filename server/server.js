@@ -19,19 +19,8 @@ initSocket(server);
 
 // Middleware
 // Middleware
-const allowedOrigins = [
-    "https://blood-link-vert.vercel.app",
-    "http://localhost:5173"
-];
-
 app.use(cors({
-    origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(new Error("Not allowed by CORS"));
-        }
-    },
+    origin: true,
     credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
