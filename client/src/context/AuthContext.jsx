@@ -61,7 +61,7 @@ export function AuthProvider({ children }) {
             }, config);
 
             console.log("Sync response:", res.data);
-            console.log("Sync response:", res.data);
+            console.log("USER FROM BACKEND:", res.data);
             setUser(res.data);
             setError(null);
         } catch (err) {
