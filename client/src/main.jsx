@@ -13,10 +13,14 @@ axios.defaults.baseURL = import.meta.env.VITE_API_URL || '';
 import { ClerkProvider } from '@clerk/clerk-react'
 
 // Import your Publishable Key
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
+console.log("ENV =", import.meta.env);
+
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+console.log("KEY =", PUBLISHABLE_KEY);
 
 if (!PUBLISHABLE_KEY) {
-  console.error("Missing Publishable Key")
+    console.error("Missing Publishable Key")
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
