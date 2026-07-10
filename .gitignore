@@ -79,3 +79,11 @@ server/uploads/
 *.db-journal
 dev.db
 server/prisma/dev.db
+
+# ===========================
+# Hosting & Caches
+# ===========================
+.vercel/
+.turbo/
+.eslintcache
+*.tsbuildinfo
