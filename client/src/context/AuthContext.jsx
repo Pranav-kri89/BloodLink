@@ -1,126 +1,110 @@
-import { createContext, useContext, useReducer, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { useAuth as useClerkAuth, useUser as useClerkUser } from '@clerk/clerk-react';
 
 const AuthContext = createContext();
 
-const initialState = {
-    user: null,
-    token: localStorage.getItem('token') || null,
-    loading: true,
-    error: null
-};
-
-function authReducer(state, action) {
-    switch (action.type) {
-        case 'AUTH_SUCCESS':
-            localStorage.setItem('token', action.payload.token);
-            return {
-                ...state,
-                user: action.payload,
-                token: action.payload.token,
-                loading: false,
-                error: null
-            };
-        case 'USER_LOADED':
-            return {
-                ...state,
-                user: action.payload,
-                loading: false,
-                error: null
-            };
-        case 'AUTH_ERROR':
-            localStorage.removeItem('token');
-            return {
-                ...state,
-                user: null,
-                token: null,
-                loading: false,
-                error: action.payload
-            };
-        case 'LOGOUT':
-            localStorage.removeItem('token');
-            return {
-                ...state,
-                user: null,
-                token: null,
-                loading: false,
-                error: null
-            };
-        case 'CLEAR_ERROR':
-            return { ...state, error: null };
-        case 'UPDATE_USER':
-            return { ...state, user: { ...state.user, ...action.payload } };
-        default:
-            return state;
-    }
-}
-
 export function AuthProvider({ children }) {
-    const [state, dispatch] = useReducer(authReducer, initialState);
+    const { isLoaded, isSignedIn, getToken, signOut } = useClerkAuth();
+    const { user: clerkUser } = useClerkUser();
 
-    // Load user on mount if token exists
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [token, setToken] = useState(null);
+
+    // Setup Axios interceptor to automatically inject Clerk token
     useEffect(() => {
-        if (state.token) {
-            loadUser();
+        const interceptor = axios.interceptors.request.use(async (config) => {
+            if (isSignedIn) {
+                const clerkToken = await getToken();
+                if (clerkToken) {
+                    config.headers.Authorization = `Bearer ${clerkToken}`;
+                }
+            }
+            return config;
+        });
+        return () => axios.interceptors.request.eject(interceptor);
+    }, [isSignedIn, getToken]);
+
+    // Sync user with backend whenever Clerk session changes
+    useEffect(() => {
+        console.error("DEBUG - AuthContext state:", { isLoaded, isSignedIn, clerkUser: !!clerkUser });
+        if (!isLoaded) return;
+
+        if (isSignedIn && clerkUser) {
+            setToken("active"); // Dummy token to satisfy `if (!token)` checks in other components
+            syncUser();
         } else {
-            dispatch({ type: 'AUTH_ERROR', payload: null });
+            setUser(null);
+            setToken(null);
+            setLoading(false);
         }
-    }, []);
+    }, [isLoaded, isSignedIn, clerkUser]);
 
-    const loadUser = async () => {
+    const syncUser = async () => {
         try {
-            const config = {
-                headers: { Authorization: `Bearer ${state.token || localStorage.getItem('token')}` }
-            };
-            const res = await axios.get('/api/auth/me', config);
-            dispatch({ type: 'USER_LOADED', payload: res.data });
+            console.log("syncUser called!");
+            setLoading(true);
+            const clerkToken = await getToken();
+            console.log("Got clerk token");
+            const config = { headers: { Authorization: `Bearer ${clerkToken}` } };
+            
+            // Try to sync/fetch
+            const res = await axios.post('/api/auth/sync', {
+                email: clerkUser.primaryEmailAddress?.emailAddress,
+                phone: clerkUser.primaryPhoneNumber?.phoneNumber,
+                name: clerkUser.fullName
+                // NOTE: We intentionally do NOT send clerkUser.imageUrl here.
+                // The user may have uploaded a custom profile picture via the dashboard,
+                // and we never want to overwrite it with the Clerk avatar on login.
+            }, config);
+            
+            console.log("Sync response:", res.data);
+            setUser(res.data);
+            setError(null);
         } catch (err) {
-            dispatch({ type: 'AUTH_ERROR', payload: 'Session expired' });
+            console.error("syncUser error:", err);
+            if (err.response?.data?.code === 'NEEDS_ONBOARDING') {
+                setUser({ onboardingRequired: true });
+            } else {
+                setError('Failed to sync user with database.');
+            }
+        } finally {
+            setLoading(false);
         }
     };
 
-    const login = async (email, password) => {
-        try {
-            const res = await axios.post('/api/auth/login', { email, password });
-            dispatch({ type: 'AUTH_SUCCESS', payload: res.data });
-            return res.data;
-        } catch (err) {
-            const message = err.response?.data?.message || 'Login failed';
-            dispatch({ type: 'AUTH_ERROR', payload: message });
-            throw new Error(message);
-        }
+    const loadUser = syncUser; // Alias for compatibility
+
+    const login = async () => {
+        throw new Error('Login is now handled by Clerk UI. Please use the SignInButton.');
     };
 
-    const register = async (userData) => {
-        try {
-            const res = await axios.post('/api/auth/register', userData);
-            dispatch({ type: 'AUTH_SUCCESS', payload: res.data });
-            return res.data;
-        } catch (err) {
-            const message = err.response?.data?.message || 'Registration failed';
-            dispatch({ type: 'AUTH_ERROR', payload: message });
-            throw new Error(message);
-        }
+    const register = async () => {
+        throw new Error('Registration is now handled by Clerk UI. Please use the SignUpButton.');
     };
 
-    const logout = () => {
-        dispatch({ type: 'LOGOUT' });
+    const logout = async () => {
+        await signOut();
+        setUser(null);
+        setToken(null);
     };
 
     const clearError = () => {
-        dispatch({ type: 'CLEAR_ERROR' });
+        setError(null);
     };
 
     const updateUser = (data) => {
-        dispatch({ type: 'UPDATE_USER', payload: data });
+        setUser(prev => ({ ...prev, ...data }));
     };
 
     return (
         <AuthContext.Provider value={{
-            user: state.user,
-            token: state.token,
-            loading: state.loading,
-            error: state.error,
+            user,
+            token, // Just a boolean-ish flag now. Actual token is injected via Axios interceptor.
+            loading,
+            error,
             login,
             register,
             logout,

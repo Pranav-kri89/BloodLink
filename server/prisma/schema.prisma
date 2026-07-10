@@ -3,28 +3,61 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 model User {
   id               String          @id @default(uuid())
+  clerkId          String?         @unique
   name             String
   email            String          @unique
-  password         String
-  phone            String
-  role             String          @default("donor") // donor, requester, admin
+  password         String?
+  phone            String?
+  role             String          @default("donor") // donor, requester, admin, onboarding
   bloodGroup       String          @default("")
   city             String          @default("")
+  address          String          @default("")
   available        Boolean         @default(true)
   lastDonationDate DateTime?
   points           Int             @default(0)
+  latitude         Float?
+  longitude        Float?
+  isVerified       Boolean         @default(false)
+  verificationLevel String         @default("bronze") // bronze, silver, gold
+  reputationScore  Int             @default(0)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
+
+  dob              DateTime?
+  gender           String          @default("")
+  weight           Float?
+  district         String          @default("")
+  rating           Float           @default(5.0)
+  acceptanceRate   Float           @default(100.0)
+  responseRate     Float           @default(100.0)
+  recentActivity   DateTime?
+  profilePicture   String          @default("")
 
   requestsMade     BloodRequest[]  @relation("Requester")
   donationsAccepted BloodRequest[] @relation("Donor")
   notifications    Notification[]
+  liveLocations    LiveLocation[]
+}
+
+model LiveLocation {
+  id          String       @id @default(uuid())
+  latitude    Float
+  longitude   Float
+  heading     Float?
+  speed       Float?
+  updatedAt   DateTime     @updatedAt
+
+  requestId   String       @unique
+  request     BloodRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  
+  donorId     String
+  donor       User         @relation(fields: [donorId], references: [id], onDelete: Cascade)
 }
 
 model BloodRequest {
@@ -37,16 +70,33 @@ model BloodRequest {
   unitsNeeded   Int            @default(1)
   urgency       String         @default("normal") // normal, urgent, critical
   status        String         @default("pending") // pending, accepted, fulfilled, cancelled
+  latitude      Float?
+  longitude     Float?
+  notifiedCount Int            @default(0)
+  responsesCount Int           @default(0)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
+  patientAge       Int            @default(30)
+  patientGender    String         @default("")
+  hospitalAddress  String         @default("")
+  doctorName       String         @default("")
+  requiredBefore   DateTime?
+  attenderName     String         @default("")
+  attenderPhone    String         @default("")
+  reason           String         @default("")
+  prescriptionUrl  String         @default("")
+  additionalNotes  String         @default("")
+
   requesterId   String
-  requester     User           @relation("Requester", fields: [requesterId], references: [id])
+  requester     User           @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
   
   donorId       String?
-  donor         User?          @relation("Donor", fields: [donorId], references: [id])
+  donor         User?          @relation("Donor", fields: [donorId], references: [id], onDelete: SetNull)
 
+  liveLocation  LiveLocation?
   notifications Notification[]
+  statusUpdates RequestStatus[]
 }
 
 model Notification {
@@ -64,6 +114,7 @@ model Notification {
   urgency        String        @default("normal")
   unitsNeeded    Int?
   contactNumber  String?
+  reason         String?
   read           Boolean       @default(false)
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
@@ -73,4 +124,14 @@ model Notification {
 
   bloodRequestId String?
   bloodRequest   BloodRequest? @relation(fields: [bloodRequestId], references: [id], onDelete: SetNull)
+}
+
+model RequestStatus {
+  id             String       @id @default(uuid())
+  status         String
+  message        String
+  createdAt      DateTime     @default(now())
+  
+  bloodRequestId String
+  bloodRequest   BloodRequest @relation(fields: [bloodRequestId], references: [id], onDelete: Cascade)
 }

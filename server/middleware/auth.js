@@ -1,37 +1,36 @@
 const jwt = require('jsonwebtoken');
 const { prisma } = require('../config/db');
 
-// Protect routes – verify JWT
+const { getAuth } = require('@clerk/express');
+
+// Protect routes – verify Clerk JWT and attach DB user
 const protect = async (req, res, next) => {
-    let token;
-
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-        try {
-            token = req.headers.authorization.split(' ')[1];
-            const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            
-            const user = await prisma.user.findUnique({
-                where: { id: decoded.id }
-            });
-            
-            if (!user) {
-                return res.status(401).json({ message: 'User no longer exists. Please register or login again.' });
-            }
-
-            // Map id to _id for frontend compatibility
-            user._id = user.id;
-            
-            const { password, ...userWithoutPassword } = user;
-            req.user = userWithoutPassword;
-            
-            next();
-        } catch (error) {
-            return res.status(401).json({ message: 'Not authorized, token failed' });
+    try {
+        const { userId } = getAuth(req);
+        if (!userId) {
+            return res.status(401).json({ message: 'Unauthorized' });
         }
-    }
+        const clerkId = userId;
+        
+        // First try to find by clerkId
+        let user = await prisma.user.findUnique({
+            where: { clerkId }
+        });
 
-    if (!token) {
-        return res.status(401).json({ message: 'Not authorized, no token' });
+        if (!user) {
+            // Return a special error if they are authenticated via Clerk but not in DB yet
+            return res.status(401).json({ message: 'User not synced in database. Please complete onboarding.', code: 'NEEDS_ONBOARDING' });
+        }
+
+        // Map id to _id for frontend compatibility
+        user._id = user.id;
+        
+        const { password, ...userWithoutPassword } = user;
+        req.user = userWithoutPassword;
+        
+        next();
+    } catch (error) {
+        return res.status(500).json({ message: 'Server error during authentication', error: error.message });
     }
 };
 

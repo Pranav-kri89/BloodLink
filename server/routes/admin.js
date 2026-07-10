@@ -84,17 +84,38 @@ router.get('/requests', protect, adminOnly, async (req, res) => {
     }
 });
 
-// @route   DELETE /api/admin/donors/:id
-// @desc    Delete a donor
 router.delete('/donors/:id', protect, adminOnly, async (req, res) => {
     try {
-        const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+        const userId = req.params.id;
+        const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user) {
             return res.status(404).json({ message: 'Donor not found' });
         }
-        await prisma.user.delete({ where: { id: req.params.id } });
+        
+        // 1. Delete notifications received by this user
+        await prisma.notification.deleteMany({ where: { recipientId: userId } });
+        
+        // 2. If this user accepted any requests, remove them as donor (keep the request)
+        await prisma.bloodRequest.updateMany({ 
+            where: { donorId: userId },
+            data: { donorId: null }
+        });
+
+        // 3. If this user created any requests (rare for donor, but possible), delete them
+        const requests = await prisma.bloodRequest.findMany({ where: { requesterId: userId } });
+        const requestIds = requests.map(r => r.id);
+        if (requestIds.length > 0) {
+            await prisma.requestStatus.deleteMany({ where: { bloodRequestId: { in: requestIds } } });
+            await prisma.notification.deleteMany({ where: { bloodRequestId: { in: requestIds } } });
+            await prisma.bloodRequest.deleteMany({ where: { requesterId: userId } });
+        }
+
+        // 4. Finally, delete the user
+        await prisma.user.delete({ where: { id: userId } });
+        
         res.json({ message: 'Donor removed successfully' });
     } catch (error) {
+        console.error('Delete donor error:', error);
         res.status(500).json({ message: error.message });
     }
 });

@@ -69,4 +69,35 @@ router.put('/read-all', protect, async (req, res) => {
     }
 });
 
+// @route   DELETE /api/notifications/clear-all
+// @desc    Delete all notifications for the logged-in user
+router.delete('/clear-all', protect, async (req, res) => {
+    try {
+        const result = await prisma.notification.deleteMany({
+            where: { recipientId: req.user.id }
+        });
+        res.json({ message: 'All notifications cleared successfully', count: result.count });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @route   DELETE /api/notifications/:id
+// @desc    Delete a notification
+router.delete('/:id', protect, async (req, res) => {
+    try {
+        const result = await prisma.notification.deleteMany({
+            where: { id: req.params.id, recipientId: req.user.id }
+        });
+        
+        if (result.count === 0) {
+            return res.status(404).json({ message: 'Notification not found' });
+        }
+        
+        res.json({ message: 'Notification removed successfully' });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 module.exports = router;

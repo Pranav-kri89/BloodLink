@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
+
+// Trigger reload
+
+const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#0ea5e9', '#3b82f6', '#8b5cf6'];
 
 function AdminDashboard() {
     const { token } = useAuth();
@@ -11,19 +16,21 @@ function AdminDashboard() {
     const [loading, setLoading] = useState(true);
     const [message, setMessage] = useState({ type: '', text: '' });
 
-    const config = { headers: { Authorization: `Bearer ${token}` } };
+    const getConfig = () => ({ headers: { Authorization: `Bearer ${token}` } });
+
+    const [donorToDelete, setDonorToDelete] = useState(null);
 
     useEffect(() => {
-        fetchData();
-    }, []);
+        if (token) fetchData();
+    }, [token]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
             const [statsRes, donorsRes, requestsRes] = await Promise.all([
-                axios.get('/api/admin/stats', config),
-                axios.get('/api/admin/donors', config),
-                axios.get('/api/admin/requests', config)
+                axios.get('/api/admin/stats', getConfig()),
+                axios.get('/api/admin/donors', getConfig()),
+                axios.get('/api/admin/requests', getConfig())
             ]);
             setStats(statsRes.data);
             setDonors(donorsRes.data);
@@ -35,22 +42,23 @@ function AdminDashboard() {
         }
     };
 
-    const handleDeleteDonor = async (id) => {
-        if (!window.confirm('Are you sure you want to remove this donor?')) return;
-
+    const confirmDeleteDonor = async () => {
+        if (!donorToDelete) return;
         try {
-            await axios.delete(`/api/admin/donors/${id}`, config);
-            setDonors(donors.filter(d => d._id !== id));
+            await axios.delete(`/api/admin/donors/${donorToDelete}`, getConfig());
+            setDonors(donors.filter(d => d._id !== donorToDelete));
             setMessage({ type: 'success', text: 'Donor removed successfully' });
             setTimeout(() => setMessage({ type: '', text: '' }), 3000);
         } catch (err) {
             setMessage({ type: 'error', text: 'Failed to remove donor' });
+        } finally {
+            setDonorToDelete(null);
         }
     };
 
     const handleUpdateRequestStatus = async (id, status) => {
         try {
-            await axios.put(`/api/admin/requests/${id}`, { status }, config);
+            await axios.put(`/api/admin/requests/${id}`, { status }, getConfig());
             setRequests(requests.map(r => r._id === id ? { ...r, status } : r));
             setMessage({ type: 'success', text: `Request marked as ${status}` });
             setTimeout(() => setMessage({ type: '', text: '' }), 3000);
@@ -65,6 +73,18 @@ function AdminDashboard() {
 
     return (
         <div className="page-container fade-in">
+            {donorToDelete && (
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div style={{ background: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '400px', width: '90%' }}>
+                        <h3 style={{ marginTop: 0 }}>Confirm Deletion</h3>
+                        <p>Are you sure you want to remove this donor? This action cannot be undone.</p>
+                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
+                            <button className="btn btn-secondary" onClick={() => setDonorToDelete(null)}>Cancel</button>
+                            <button className="btn btn-danger" onClick={confirmDeleteDonor}>Yes, Remove Donor</button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <div className="page-header">
                 <h1>Admin Dashboard</h1>
                 <p>Manage donors, requests, and view system statistics</p>
@@ -111,13 +131,27 @@ function AdminDashboard() {
             {stats && stats.donorsByBloodGroup && (
                 <div className="card" style={{ marginBottom: '1.5rem' }}>
                     <h3 style={{ marginBottom: '1rem', fontWeight: 600 }}>Donors by Blood Group</h3>
-                    <div className="blood-group-chart">
-                        {stats.donorsByBloodGroup.map(item => (
-                            <div key={item._id} className="blood-group-item">
-                                <div className="bg-label">{item._id || 'Not Set'}</div>
-                                <div className="bg-count">{item.count} donor{item.count !== 1 ? 's' : ''}</div>
-                            </div>
-                        ))}
+                    <div style={{ height: '300px', width: '100%' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={stats.donorsByBloodGroup.map(item => ({ name: item._id || 'Unknown', value: item.count }))}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={100}
+                                    fill="#8884d8"
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                >
+                                    {stats.donorsByBloodGroup.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                            </PieChart>
+                        </ResponsiveContainer>
                     </div>
                 </div>
             )}
@@ -145,28 +179,30 @@ function AdminDashboard() {
             </div>
 
             {/* Overview Tab */}
-            {activeTab === 'overview' && stats && (
+            {activeTab === 'overview' && (
                 <div className="card">
-                    <h3 style={{ marginBottom: '1rem', fontWeight: 600 }}>Recent Requests</h3>
-                    {stats.recentRequests?.length > 0 ? (
+                    <h2>Recent Activity</h2>
+                    <p style={{ color: 'var(--text-light)', marginBottom: '1rem' }}>Last 5 blood requests</p>
+
+                    {stats && stats.recentRequests && stats.recentRequests.length > 0 ? (
                         <div className="table-wrapper">
                             <table>
                                 <thead>
                                     <tr>
+                                        <th>Date</th>
                                         <th>Patient</th>
                                         <th>Blood Group</th>
                                         <th>City</th>
-                                        <th>Urgency</th>
                                         <th>Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {stats.recentRequests.map(req => (
                                         <tr key={req._id}>
-                                            <td>{req.patientName}</td>
+                                            <td>{new Date(req.createdAt).toLocaleDateString()}</td>
+                                            <td style={{ fontWeight: 500 }}>{req.patientName}</td>
                                             <td><span className="blood-group-badge">{req.bloodGroup}</span></td>
                                             <td>{req.city}</td>
-                                            <td><span className={`status-badge ${req.urgency}`}>{req.urgency}</span></td>
                                             <td><span className={`status-badge ${req.status}`}>{req.status}</span></td>
                                         </tr>
                                     ))}
@@ -175,7 +211,7 @@ function AdminDashboard() {
                         </div>
                     ) : (
                         <div className="empty-state">
-                            <p>No requests yet.</p>
+                            <p>No recent activity found</p>
                         </div>
                     )}
                 </div>
@@ -188,11 +224,10 @@ function AdminDashboard() {
                         <thead>
                             <tr>
                                 <th>Name</th>
-                                <th>Email</th>
-                                <th>Phone</th>
                                 <th>Blood Group</th>
                                 <th>City</th>
-                                <th>Status</th>
+                                <th>Contact</th>
+                                <th>Joined</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -200,20 +235,19 @@ function AdminDashboard() {
                             {donors.map(donor => (
                                 <tr key={donor._id}>
                                     <td style={{ fontWeight: 500 }}>{donor.name}</td>
-                                    <td>{donor.email}</td>
-                                    <td>{donor.phone}</td>
                                     <td><span className="blood-group-badge">{donor.bloodGroup || '—'}</span></td>
                                     <td>{donor.city || '—'}</td>
                                     <td>
-                                        <span className={`availability-badge ${donor.available ? 'available' : 'unavailable'}`}>
-                                            <span className="dot"></span>
-                                            {donor.available ? 'Available' : 'Unavailable'}
-                                        </span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', fontSize: '0.875rem' }}>
+                                            <span>{donor.phone}</span>
+                                            <span style={{ color: 'var(--text-light)' }}>{donor.email}</span>
+                                        </div>
                                     </td>
+                                    <td>{new Date(donor.createdAt).toLocaleDateString()}</td>
                                     <td>
                                         <button
                                             className="btn btn-danger btn-sm"
-                                            onClick={() => handleDeleteDonor(donor._id)}
+                                            onClick={() => setDonorToDelete(donor._id)}
                                         >
                                             Remove
                                         </button>

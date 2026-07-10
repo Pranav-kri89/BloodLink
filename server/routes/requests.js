@@ -61,9 +61,7 @@ router.post('/', protect, async (req, res) => {
             bloodRequestId: request.id,
             title: `${urgencyLabel} Blood Request - ${bloodGroup} needed`,
             message: `${patientName} needs ${unitsNeeded || 1} unit(s) of ${bloodGroup} blood at ${hospital}, ${city}.`,
-            requesterName: req.user.name,
-            requesterEmail: req.user.email,
-            requesterPhone: req.user.phone || '',
+
             patientName,
             bloodGroup,
             city,
@@ -85,7 +83,7 @@ router.post('/', protect, async (req, res) => {
             const requestDetails = {
                 patientName, bloodGroup, city, hospital, contactNumber,
                 unitsNeeded: unitsNeeded || 1, urgency: urgency || 'normal',
-                requesterName: req.user.name, requesterEmail: req.user.email
+
             };
             const emailPromises = matchingDonors.map(donor =>
                 sendDonorNotification(donor.email, donor.name, requestDetails)
@@ -130,7 +128,7 @@ router.get('/my', protect, async (req, res) => {
             where: { requesterId: req.user.id },
             include: {
                 donor: {
-                    select: { name: true, phone: true, id: true }
+                    select: { name: true, phone: true, id: true, profilePicture: true, bloodGroup: true, city: true }
                 }
             },
             orderBy: { createdAt: 'desc' }
@@ -149,8 +147,36 @@ router.get('/my', protect, async (req, res) => {
     }
 });
 
-// @route   PUT /api/requests/:id/status
-// @desc    Update request status (for requester)
+// @route   GET /api/requests/:id
+// @desc    Get a single blood request by ID (for donor journey + tracking pages)
+router.get('/:id', protect, async (req, res) => {
+    try {
+        const request = await prisma.bloodRequest.findUnique({
+            where: { id: req.params.id },
+            include: {
+                donor: {
+                    select: { id: true, name: true, phone: true, profilePicture: true, bloodGroup: true, city: true }
+                },
+                requester: {
+                    select: { id: true, name: true, phone: true }
+                },
+                liveLocation: true
+            }
+        });
+
+        if (!request) {
+            return res.status(404).json({ message: 'Request not found' });
+        }
+
+        res.json({ ...request, _id: request.id });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+
+// @desc    Update request status
+//          Requester: fulfilled, cancelled | Donor: arrived
 router.put('/:id/status', protect, async (req, res) => {
     try {
         const request = await prisma.bloodRequest.findUnique({
@@ -161,17 +187,24 @@ router.put('/:id/status', protect, async (req, res) => {
             return res.status(404).json({ message: 'Request not found' });
         }
 
-        // Ensure user is the owner of the request
-        if (request.requesterId !== req.user.id) {
+        const newStatus = req.body.status;
+        const isRequester = request.requesterId === req.user.id;
+        const isDonor = request.donorId === req.user.id;
+
+        // Authorization check
+        if (!isRequester && !isDonor) {
             return res.status(401).json({ message: 'Not authorized to update this request' });
         }
+        // Donor can only set 'arrived'
+        if (isDonor && !isRequester && newStatus !== 'arrived') {
+            return res.status(401).json({ message: 'Donor can only mark request as arrived' });
+        }
 
-        // If status is being changed to 'fulfilled'
-        if (req.body.status === 'fulfilled' && request.status !== 'fulfilled') {
+        // If being fulfilled — award donor + notify requester
+        if (newStatus === 'fulfilled' && request.status !== 'fulfilled') {
             if (request.donorId) {
                 const donor = await prisma.user.findUnique({ where: { id: request.donorId } });
                 if (donor) {
-                    // Update donor stats
                     await prisma.user.update({
                         where: { id: donor.id },
                         data: {
@@ -181,7 +214,7 @@ router.put('/:id/status', protect, async (req, res) => {
                         }
                     });
 
-                    // Create Reward Notification
+                    // Notify donor: reward earned
                     await prisma.notification.create({
                         data: {
                             recipientId: donor.id,
@@ -195,17 +228,40 @@ router.put('/:id/status', protect, async (req, res) => {
                             urgency: request.urgency,
                             unitsNeeded: request.unitsNeeded,
                             contactNumber: request.contactNumber,
-                            requesterName: req.user.name
                         }
                     });
                 }
             }
+
+            // GAP 4 FIX: Notify the requester that donation is complete
+            await prisma.notification.create({
+                data: {
+                    recipientId: request.requesterId,
+                    type: 'general',
+                    title: '✅ Donation Completed!',
+                    message: `Your blood request for ${request.patientName} has been fulfilled. A certificate has been issued to the donor. Thank you for using BloodLink!`,
+                    bloodRequestId: request.id,
+                    patientName: request.patientName,
+                    hospital: request.hospital,
+                    city: request.city,
+                    urgency: request.urgency,
+                    unitsNeeded: request.unitsNeeded,
+                    contactNumber: request.contactNumber,
+                }
+            });
         }
 
         const updatedRequest = await prisma.bloodRequest.update({
             where: { id: request.id },
-            data: { status: req.body.status || request.status }
+            data: { status: newStatus }
         });
+
+        // Emit socket so tracking page updates instantly
+        try {
+            const { getIo } = require('../socket');
+            const io = getIo();
+            io.to(`track_${request.id}`).emit(`request_update_${request.id}`, { status: newStatus });
+        } catch (e) { /* non-critical */ }
         
         res.json({ ...updatedRequest, _id: updatedRequest.id });
     } catch (error) {
@@ -238,19 +294,36 @@ router.put('/:id/accept', protect, async (req, res) => {
             }
         });
 
-        // Notify the requester
+        // Notify the requester that a donor accepted
         await prisma.notification.create({
             data: {
                 recipientId: request.requesterId,
-                type: 'general', // Use general or add 'request_accepted' to schema enum later if needed. Schema says blood_request, request_fulfilled, general
-                title: '🎉 Request Accepted!',
-                message: `${req.user.name} has accepted your blood request for ${request.patientName}. They will contact you shortly.`,
+                type: 'general',
+                title: '🎉 Donor Accepted Your Request!',
+                message: `${req.user.name} has accepted your blood request for ${request.patientName}. They will start their journey to ${request.hospital} shortly. You can track them live.`,
                 bloodRequestId: request.id,
                 patientName: request.patientName,
-                requesterName: req.user.name,
-                requesterPhone: req.user.phone
+                hospital: request.hospital,
+                city: request.city,
+                urgency: request.urgency,
+                unitsNeeded: request.unitsNeeded,
+                contactNumber: request.contactNumber,
             }
         });
+
+        // Emit socket so requester's tracking page updates in real time
+        try {
+            const { getIo } = require('../socket');
+            const io = getIo();
+            io.to(`track_${request.id}`).emit('request_accepted', {
+                requestId: request.id,
+                status: 'accepted',
+                donorId: req.user.id,
+                donorName: req.user.name
+            });
+        } catch (e) {
+            console.warn('Socket emit failed (non-critical):', e.message);
+        }
 
         res.json({ ...updatedRequest, _id: updatedRequest.id });
     } catch (error) {
@@ -284,4 +357,106 @@ router.get('/donor/my', protect, async (req, res) => {
     }
 });
 
+// @route   POST /api/requests/:id/journey
+// @desc    Start donor live journey — creates LiveLocation record and notifies requester
+router.post('/:id/journey', protect, async (req, res) => {
+    try {
+        const { latitude, longitude } = req.body;
+        const requestId = req.params.id;
+
+        const request = await prisma.bloodRequest.findUnique({
+            where: { id: requestId }
+        });
+
+        if (!request) {
+            return res.status(404).json({ message: 'Request not found' });
+        }
+
+        if (request.donorId !== req.user.id) {
+            return res.status(401).json({ message: 'Only the assigned donor can start the journey' });
+        }
+
+        // Upsert LiveLocation (create if not exists, update if already exists)
+        const liveLocation = await prisma.liveLocation.upsert({
+            where: { requestId },
+            update: { latitude, longitude, updatedAt: new Date() },
+            create: {
+                requestId,
+                donorId: req.user.id,
+                latitude,
+                longitude
+            }
+        });
+
+        // Emit socket so requester's tracking page activates live map
+        try {
+            const { getIo } = require('../socket');
+            const io = getIo();
+            io.to(`track_${requestId}`).emit('trackingStarted', { requestId, liveLocation });
+        } catch (e) {
+            console.warn('Socket emit failed (non-critical):', e.message);
+        }
+
+        // Notify requester that donor is on the way (only once)
+        const existingNotif = await prisma.notification.findFirst({
+            where: { bloodRequestId: requestId, title: { contains: 'on the way' } }
+        });
+        if (!existingNotif) {
+            await prisma.notification.create({
+                data: {
+                    recipientId: request.requesterId,
+                    type: 'general',
+                    title: '\ud83d\ude97 Donor is on the way!',
+                    message: `${req.user.name} has started their journey to ${request.hospital}. You can now track their live location.`,
+                    bloodRequestId: requestId,
+                    patientName: request.patientName,
+                    hospital: request.hospital,
+                    city: request.city,
+                    urgency: request.urgency,
+                    unitsNeeded: request.unitsNeeded,
+                    contactNumber: request.contactNumber,
+                }
+            });
+        }
+
+        res.json({ message: 'Journey started', liveLocation });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
+// @route   PUT /api/requests/:id/journey/location
+// @desc    Update donor's live GPS location during journey
+router.put('/:id/journey/location', protect, async (req, res) => {
+    try {
+        const { latitude, longitude, speed, heading } = req.body;
+        const requestId = req.params.id;
+
+        const liveLocation = await prisma.liveLocation.update({
+            where: { requestId },
+            data: {
+                latitude,
+                longitude,
+                speed: speed ?? null,
+                heading: heading ?? null,
+                updatedAt: new Date()
+            }
+        });
+
+        // Broadcast location change to tracking room via socket
+        try {
+            const { getIo } = require('../socket');
+            const io = getIo();
+            io.to(`track_${requestId}`).emit('donorLocationChanged', {
+                requestId, latitude, longitude, speed, heading
+            });
+        } catch (e) { /* non-critical */ }
+
+        res.json({ message: 'Location updated', liveLocation });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+});
+
 module.exports = router;
+
