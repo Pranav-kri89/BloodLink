@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -194,7 +194,7 @@ router.post('/sync', async (req, res) => {
             }
         } else {
             // Update if they're passing onboarding fields
-            // NOTE: profilePicture is intentionally excluded here — it should only be
+            // NOTE: profilePicture is intentionally excluded here â€” it should only be
             // updated through the dedicated /api/donors/profile route to prevent
             // the Clerk avatar from overwriting the user's custom uploaded picture.
             if (role || bloodGroup || city || phone || req.body.address || req.body.dob) {

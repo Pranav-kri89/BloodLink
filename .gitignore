@@ -70,3 +70,12 @@ coverage/
 # Uploads (generated at runtime)
 # ===========================
 uploads/
+server/uploads/
+
+# ===========================
+# Database
+# ===========================
+*.db
+*.db-journal
+dev.db
+server/prisma/dev.db

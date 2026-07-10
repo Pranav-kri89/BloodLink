@@ -1,9 +1,9 @@
-const jwt = require('jsonwebtoken');
+﻿const jwt = require('jsonwebtoken');
 const { prisma } = require('../config/db');
 
 const { getAuth } = require('@clerk/express');
 
-// Protect routes – verify Clerk JWT and attach DB user
+// Protect routes â€“ verify Clerk JWT and attach DB user
 const protect = async (req, res, next) => {
     try {
         const { userId } = getAuth(req);

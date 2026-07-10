@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const { prisma } = require('../config/db');
 const { protect } = require('../middleware/auth');
@@ -200,7 +200,7 @@ router.put('/:id/status', protect, async (req, res) => {
             return res.status(401).json({ message: 'Donor can only mark request as arrived' });
         }
 
-        // If being fulfilled — award donor + notify requester
+        // If being fulfilled â€” award donor + notify requester
         if (newStatus === 'fulfilled' && request.status !== 'fulfilled') {
             if (request.donorId) {
                 const donor = await prisma.user.findUnique({ where: { id: request.donorId } });
@@ -219,7 +219,7 @@ router.put('/:id/status', protect, async (req, res) => {
                         data: {
                             recipientId: donor.id,
                             type: 'request_fulfilled',
-                            title: '🎉 You earned 50 Points!',
+                            title: 'ðŸŽ‰ You earned 50 Points!',
                             message: `Thank you for donating blood to ${request.patientName}. You have been awarded 50 points and your donor level is growing!`,
                             bloodRequestId: request.id,
                             patientName: request.patientName,
@@ -238,7 +238,7 @@ router.put('/:id/status', protect, async (req, res) => {
                 data: {
                     recipientId: request.requesterId,
                     type: 'general',
-                    title: '✅ Donation Completed!',
+                    title: 'âœ… Donation Completed!',
                     message: `Your blood request for ${request.patientName} has been fulfilled. A certificate has been issued to the donor. Thank you for using BloodLink!`,
                     bloodRequestId: request.id,
                     patientName: request.patientName,
@@ -299,7 +299,7 @@ router.put('/:id/accept', protect, async (req, res) => {
             data: {
                 recipientId: request.requesterId,
                 type: 'general',
-                title: '🎉 Donor Accepted Your Request!',
+                title: 'ðŸŽ‰ Donor Accepted Your Request!',
                 message: `${req.user.name} has accepted your blood request for ${request.patientName}. They will start their journey to ${request.hospital} shortly. You can track them live.`,
                 bloodRequestId: request.id,
                 patientName: request.patientName,
@@ -358,7 +358,7 @@ router.get('/donor/my', protect, async (req, res) => {
 });
 
 // @route   POST /api/requests/:id/journey
-// @desc    Start donor live journey — creates LiveLocation record and notifies requester
+// @desc    Start donor live journey â€” creates LiveLocation record and notifies requester
 router.post('/:id/journey', protect, async (req, res) => {
     try {
         const { latitude, longitude } = req.body;

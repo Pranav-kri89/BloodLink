@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const router = express.Router();
 const { prisma } = require('../config/db');
 const { protect } = require('../middleware/auth');
@@ -174,8 +174,8 @@ router.put('/availability', protect, async (req, res) => {
             if (daysSinceDonation < cooldownDays) {
                 const daysRemaining = cooldownDays - daysSinceDonation;
                 const cooldownLabel = user.gender?.toLowerCase() === 'female'
-                    ? '4 months (120 days) — Female'
-                    : '3 months (90 days) — Male';
+                    ? '4 months (120 days) â€” Female'
+                    : '3 months (90 days) â€” Male';
                 return res.status(400).json({
                     message: `You cannot donate yet. Please wait ${daysRemaining} more day(s). Cooldown: ${cooldownLabel}`,
                     daysRemaining,
