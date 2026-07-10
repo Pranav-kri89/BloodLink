@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const dotenv = require('dotenv');
 const { connectDB } = require('./config/db');
-const { clerkMiddleware } = require('@clerk/express');
+const { clerkMiddleware } = require("@clerk/express");
 
 // Load env vars
 dotenv.config();

@@ -141,91 +141,107 @@ router.post('/login', async (req, res) => {
     }
 });
 
-const { requireAuth, getAuth } = require('@clerk/express');
-
+const { clerkMiddleware, requireAuth, getAuth } = require('@clerk/express');
 // @route   POST /api/auth/sync
 // @desc    Sync a Clerk user to our database
-router.post('/sync', async (req, res) => {
+// @route   POST /api/auth/sync
+// @desc    Sync a Clerk user to our database
+router.post('/sync', requireAuth(), async (req, res) => {
     try {
         const { userId } = getAuth(req);
-        const clerkId = userId;
-        if (!clerkId) {
-            return res.status(401).json({ message: 'Unauthorized: No clerkId found in req.auth' });
+
+        if (!userId) {
+            return res.status(401).json({
+                message: "Unauthorized"
+            });
         }
-        const { email, name, profilePicture, role, bloodGroup, city, phone } = req.body;
+
+        const {
+            email,
+            name,
+            profilePicture,
+            role,
+            bloodGroup,
+            city,
+            phone,
+            address,
+            dob
+        } = req.body;
 
         let user = await prisma.user.findUnique({
-            where: { clerkId }
+            where: { clerkId: userId }
         });
 
-        if (!user) {
-            // Check if user exists by email (legacy user migrating to Clerk)
+        // Existing user
+        if (user) {
+            user = await prisma.user.update({
+                where: { clerkId: userId },
+                data: {
+                    ...(role && { role }),
+                    ...(bloodGroup && { bloodGroup }),
+                    ...(city && { city }),
+                    ...(phone && { phone }),
+                    ...(address && { address }),
+                    ...(dob && { dob: new Date(dob) })
+                }
+            });
+        } else {
+            // Try linking an existing email account
             if (email) {
-                user = await prisma.user.findUnique({ where: { email } });
-            }
-            
-            if (user) {
-                // Link the legacy user
-                user = await prisma.user.update({
-                    where: { email },
-                    data: {
-                        clerkId,
-                        // Only set Clerk's picture if the user has no custom picture saved yet
-                        ...(!user.profilePicture && profilePicture ? { profilePicture } : {})
-                    }
+                const existing = await prisma.user.findUnique({
+                    where: { email }
                 });
-            } else {
-                // Create a completely new user
-                const placeholderEmail = email || `user_${clerkId}@bloodlink.local`;
+
+                if (existing) {
+                    user = await prisma.user.update({
+                        where: { email },
+                        data: {
+                            clerkId: userId,
+                            ...(profilePicture &&
+                                !existing.profilePicture && {
+                                profilePicture
+                            })
+                        }
+                    });
+                }
+            }
+
+            // Create brand new user
+            if (!user) {
                 user = await prisma.user.create({
                     data: {
-                        clerkId,
-                        email: placeholderEmail,
-                        name: name || 'User',
-                        role: role || 'donor',
-                        bloodGroup: bloodGroup || '',
-                        city: city || '',
-                        address: req.body.address || '',
-                        phone: phone || '',
-                        dob: req.body.dob ? new Date(req.body.dob) : null,
-                        profilePicture: profilePicture || ''
-                    }
-                });
-            }
-        } else {
-            // Update if they're passing onboarding fields
-            // NOTE: profilePicture is intentionally excluded here â€” it should only be
-            // updated through the dedicated /api/donors/profile route to prevent
-            // the Clerk avatar from overwriting the user's custom uploaded picture.
-            if (role || bloodGroup || city || phone || req.body.address || req.body.dob) {
-                user = await prisma.user.update({
-                    where: { clerkId },
-                    data: {
-                        ...(role && { role }),
-                        ...(bloodGroup && { bloodGroup }),
-                        ...(city && { city }),
-                        ...(req.body.address && { address: req.body.address }),
-                        ...(phone && { phone }),
-                        ...(req.body.dob && { dob: new Date(req.body.dob) })
+                        clerkId: userId,
+                        email: email || `user_${userId}@bloodlink.local`,
+                        name: name || "User",
+                        role: role || "donor",
+                        bloodGroup: bloodGroup || "",
+                        city: city || "",
+                        phone: phone || "",
+                        address: address || "",
+                        dob: dob ? new Date(dob) : null,
+                        profilePicture: profilePicture || ""
                     }
                 });
             }
         }
 
-        // Enforce onboarding: check if required fields are missing
-        if (!user.city || !user.bloodGroup || !user.phone || !user.address || !user.dob) {
-            return res.status(400).json({ code: 'NEEDS_ONBOARDING', message: 'Please complete your profile' });
-        }
+        const { password, ...userData } = user;
 
-        const { password, ...userWithoutPassword } = user;
-        res.json({
-            ...userWithoutPassword,
-            _id: user.id
+        res.status(200).json({
+            success: true,
+            user: {
+                ...userData,
+                _id: user.id
+            }
         });
 
-    } catch (error) {
-        console.error("Sync error:", error);
-        res.status(500).json({ message: error.message });
+    } catch (err) {
+        console.error("SYNC ERROR:", err);
+
+        res.status(500).json({
+            success: false,
+            message: err.message
+        });
     }
 });
 
@@ -234,14 +250,14 @@ router.post('/sync', async (req, res) => {
 router.get('/me', protect, async (req, res) => {
     try {
         let user = req.user;
-        
+
         // Auto-update availability if cooldown has passed and they are currently unavailable
         if (!user.available && user.lastDonationDate && user.role === 'donor') {
             const getCooldownDays = (gender) =>
                 (gender?.toLowerCase() === 'female') ? 120 : 90;
             const cooldownDays = getCooldownDays(user.gender);
             const daysSince = Math.floor((new Date() - new Date(user.lastDonationDate)) / (1000 * 60 * 60 * 24));
-            
+
             if (daysSince >= cooldownDays) {
                 user.available = true;
                 // Update in DB asynchronously
