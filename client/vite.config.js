@@ -17,5 +17,17 @@ export default defineConfig({
                 changeOrigin: true
             }
         }
+    },
+    build: {
+        chunkSizeWarningLimit: 1600, // Suppress the chunk size warning
+        rollupOptions: {
+            output: {
+                manualChunks(id) {
+                    if (id.includes('node_modules')) {
+                        return 'vendor'; // Split dependencies into their own chunk
+                    }
+                }
+            }
+        }
     }
 })
