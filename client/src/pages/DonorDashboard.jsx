@@ -467,9 +467,9 @@ function DonorDashboard() {
                     ) : myRequests.length === 0 ? (
                         <p style={{ color: 'var(--text-muted)' }}>You haven't requested any blood. If you need blood, go to the Search Donors page to create a request.</p>
                     ) : (
-                        <div className="table-wrapper">
-                            <table>
-                                <thead>
+                        <div className="table-wrapper" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                            <table style={{ position: 'relative' }}>
+                                <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'var(--bg-card)' }}>
                                     <tr>
                                         <th>Patient</th>
                                         <th>Blood Group</th>

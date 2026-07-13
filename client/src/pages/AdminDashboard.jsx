@@ -72,12 +72,12 @@ function AdminDashboard() {
     }
 
     return (
-        <div className="page-container fade-in">
+        <>
             {donorToDelete && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                    <div style={{ background: 'white', padding: '2rem', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '400px', width: '90%' }}>
-                        <h3 style={{ marginTop: 0 }}>Confirm Deletion</h3>
-                        <p>Are you sure you want to remove this donor? This action cannot be undone.</p>
+                <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', padding: '2rem', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', maxWidth: '400px', width: '90%' }}>
+                        <h3 style={{ marginTop: 0, color: 'var(--text-primary)' }}>Confirm Deletion</h3>
+                        <p style={{ color: 'var(--text-secondary)' }}>Are you sure you want to remove this donor? This action cannot be undone.</p>
                         <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
                             <button className="btn btn-secondary" onClick={() => setDonorToDelete(null)}>Cancel</button>
                             <button className="btn btn-danger" onClick={confirmDeleteDonor}>Yes, Remove Donor</button>
@@ -85,9 +85,10 @@ function AdminDashboard() {
                     </div>
                 </div>
             )}
-            <div className="page-header">
-                <h1>Admin Dashboard</h1>
-                <p>Manage donors, requests, and view system statistics</p>
+            <div className="page-container fade-in">
+                <div className="page-header">
+                    <h1>Admin Dashboard</h1>
+                    <p>Manage donors, requests, and view system statistics</p>
             </div>
 
             {message.text && (
@@ -185,9 +186,9 @@ function AdminDashboard() {
                     <p style={{ color: 'var(--text-light)', marginBottom: '1rem' }}>Last 5 blood requests</p>
 
                     {stats && stats.recentRequests && stats.recentRequests.length > 0 ? (
-                        <div className="table-wrapper">
-                            <table>
-                                <thead>
+                        <div className="table-wrapper" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                            <table style={{ position: 'relative' }}>
+                                <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'var(--bg-card)' }}>
                                     <tr>
                                         <th>Date</th>
                                         <th>Patient</th>
@@ -219,9 +220,9 @@ function AdminDashboard() {
 
             {/* Donors Tab */}
             {activeTab === 'donors' && (
-                <div className="table-wrapper">
-                    <table>
-                        <thead>
+                <div className="table-wrapper" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    <table style={{ position: 'relative' }}>
+                        <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'var(--bg-card)' }}>
                             <tr>
                                 <th>Name</th>
                                 <th>Blood Group</th>
@@ -261,9 +262,9 @@ function AdminDashboard() {
 
             {/* Requests Tab */}
             {activeTab === 'requests' && (
-                <div className="table-wrapper">
-                    <table>
-                        <thead>
+                <div className="table-wrapper" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    <table style={{ position: 'relative' }}>
+                        <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'var(--bg-card)' }}>
                             <tr>
                                 <th>Patient</th>
                                 <th>Blood Group</th>
@@ -311,7 +312,8 @@ function AdminDashboard() {
                     </table>
                 </div>
             )}
-        </div>
+            </div>
+        </>
     );
 }
 

@@ -202,9 +202,11 @@ export default function Navbar() {
                                 <div style={{ position: 'relative' }}>
                                     <button onClick={() => setUserMenuOpen(!userMenuOpen)}
                                         style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 12px', borderRadius: 'var(--radius-sm)', border: '2px solid var(--border-color)', background: 'var(--bg-secondary)', cursor: 'pointer', transition: 'all 0.1s ease', color: 'var(--text-primary)', boxShadow: '2px 2px 0px 0px var(--shadow-color)' }}>
-                                        <div style={{ width: 26, height: 26, borderRadius: 'var(--radius-sm)', border: '1.5px solid var(--border-color)', background: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-white)', overflow: 'hidden' }}>
+                                        <div style={{ width: 28, height: 28, borderRadius: 'var(--radius-sm)', border: '1.5px solid var(--border-color)', background: (!user.profilePicture && user.role !== 'admin') ? 'var(--primary)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-white)', overflow: 'hidden' }}>
                                             {user.profilePicture ? (
                                                 <img src={user.profilePicture} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                            ) : user.role === 'admin' ? (
+                                                <img src="/logo_transparent.png" alt="Admin" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                             ) : (
                                                 user.name?.charAt(0).toUpperCase()
                                             )}
