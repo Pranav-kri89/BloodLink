@@ -186,7 +186,7 @@ function AdminDashboard() {
                     <p style={{ color: 'var(--text-light)', marginBottom: '1rem' }}>Last 5 blood requests</p>
 
                     {stats && stats.recentRequests && stats.recentRequests.length > 0 ? (
-                        <div className="table-wrapper" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                        <div className="table-wrapper" style={{ maxHeight: '400px', overflow: 'auto' }}>
                             <table style={{ position: 'relative' }}>
                                 <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'var(--bg-card)' }}>
                                     <tr>
@@ -220,7 +220,7 @@ function AdminDashboard() {
 
             {/* Donors Tab */}
             {activeTab === 'donors' && (
-                <div className="table-wrapper" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                <div className="table-wrapper" style={{ maxHeight: '400px', overflow: 'auto' }}>
                     <table style={{ position: 'relative' }}>
                         <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'var(--bg-card)' }}>
                             <tr>
@@ -262,7 +262,7 @@ function AdminDashboard() {
 
             {/* Requests Tab */}
             {activeTab === 'requests' && (
-                <div className="table-wrapper" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                <div className="table-wrapper" style={{ maxHeight: '400px', overflow: 'auto' }}>
                     <table style={{ position: 'relative' }}>
                         <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'var(--bg-card)' }}>
                             <tr>

@@ -46,7 +46,7 @@ export default function Login() {
             <div style={{ position: 'absolute', top: '20%', left: '50%', transform: 'translateX(-50%)', width: 500, height: 300, background: 'radial-gradient(circle, rgba(230,57,70,0.06) 0%, transparent 70%)', pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(230,57,70,0.04) 1px, transparent 1px)', backgroundSize: '28px 28px', pointerEvents: 'none' }} />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', width: '100%', maxWidth: 900, position: 'relative', zIndex: 1 }} className="login-grid">
+            <div style={{ width: '100%', maxWidth: 900, position: 'relative', zIndex: 1 }} className="login-grid">
                 {/* Left Brand Panel */}
                 <motion.div initial={{ opacity: 0, x: -24 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6 }}
                     style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: '2rem', background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: 'var(--border-width) solid var(--border-color)', boxShadow: 'var(--shadow-sm)' }}

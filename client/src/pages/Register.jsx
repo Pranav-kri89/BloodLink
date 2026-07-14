@@ -448,7 +448,7 @@ export default function Register() {
 
                                     {form.role === 'donor' && (
                                         <>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                            <div className="form-row" style={{ gap: '0.75rem' }}>
                                                 {/* Gender */}
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                                                     <label style={labelStyle}>Gender</label>
@@ -471,7 +471,7 @@ export default function Register() {
                                                 </div>
                                             </div>
 
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                            <div className="form-row" style={{ gap: '0.75rem' }}>
                                                 {/* DOB */}
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                                                     <label style={labelStyle}>Date of Birth</label>
