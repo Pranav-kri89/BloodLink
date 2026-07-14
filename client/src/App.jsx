@@ -232,8 +232,8 @@ function HomePage() {
 
                     {/* Prominent Central Predictive Smart Search Bar */}
                     <div style={{ position: 'relative', maxWidth: 600, margin: '0 auto 2.5rem' }}>
-                        <form onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '100px', padding: '6px 8px', boxShadow: 'var(--shadow-lg)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, paddingLeft: 16 }}>
+                        <form onSubmit={handleSearch} className="hero-search-form">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, paddingLeft: 16 }} className="hero-search-input">
                                 <Search style={{ width: 20, height: 20, color: 'var(--text-muted)' }} />
                                 <input 
                                     type="text" 
@@ -351,10 +351,10 @@ function HomePage() {
                         <p style={{ color: 'var(--text-secondary)', marginTop: '0.5rem', fontSize: '1rem', fontWeight: 500 }}>Access real-time recipient requests, donor points programs, and pre-donation advisories.</p>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '1.5rem' }} className="bento-grid">
+                    <div className="bento-grid">
                         
                         {/* Bento Item 1: Our Services */}
-                        <div style={{ gridColumn: 'span 8', background: 'var(--bg-card)', border: 'var(--border-width) solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '2.25rem', boxShadow: 'var(--shadow-md)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} className="bento-card-8">
+                        <div style={{ background: 'var(--bg-card)', border: 'var(--border-width) solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '2.25rem', boxShadow: 'var(--shadow-md)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} className="bento-card-8">
                             <div>
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--primary-light)', color: 'var(--primary)', padding: '4px 12px', borderRadius: '100px', fontSize: '0.72rem', fontWeight: 800, marginBottom: '1rem' }}>
                                     <span>MATCH PROVISIONS</span>
@@ -364,7 +364,7 @@ function HomePage() {
                                     Connecting recipients with volunteer donors directly. Our peer-to-peer matching algorithm eliminates clinical overhead, bridging critical needs in minutes.
                                 </p>
                                 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }} className="bento-inner-grid">
+                                <div className="bento-inner-grid" style={{ marginBottom: '2rem' }}>
                                     <div style={{ display: 'flex', gap: 12 }}>
                                         <div style={{ width: 42, height: 42, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                             <Droplets style={{ width: 18, height: 18, color: 'var(--primary)' }} />
@@ -412,7 +412,7 @@ function HomePage() {
                         </div>
 
                         {/* Bento Item 2: Donor Incentives */}
-                        <div style={{ gridColumn: 'span 4', background: 'var(--bg-card)', border: 'var(--border-width) solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '2.25rem', boxShadow: 'var(--shadow-md)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} className="bento-card-4">
+                        <div style={{ background: 'var(--bg-card)', border: 'var(--border-width) solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '2.25rem', boxShadow: 'var(--shadow-md)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }} className="bento-card-4">
                             <div>
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(16, 185, 129, 0.1)', color: 'var(--secondary)', padding: '4px 12px', borderRadius: '100px', fontSize: '0.72rem', fontWeight: 800, marginBottom: '1rem' }}>
                                     <span>COMMUNITY CREDIT PROGRAM</span>
@@ -440,7 +440,7 @@ function HomePage() {
                         </div>
 
                         {/* Bento Item 3: Latest Health Advisories */}
-                        <div style={{ gridColumn: 'span 12', background: 'var(--bg-card)', border: 'var(--border-width) solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '2rem 2.25rem', boxShadow: 'var(--shadow-md)', display: 'grid', gridTemplateColumns: '3fr 9fr', gap: '2rem', alignItems: 'center' }} className="bento-card-12">
+                        <div style={{ background: 'var(--bg-card)', border: 'var(--border-width) solid var(--border-color)', borderRadius: 'var(--radius-lg)', padding: '2rem 2.25rem', boxShadow: 'var(--shadow-md)' }} className="bento-card-12">
                             <div>
                                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(245, 158, 11, 0.1)', color: 'var(--accent)', padding: '4px 12px', borderRadius: '100px', fontSize: '0.72rem', fontWeight: 800, marginBottom: '0.75rem' }}>
                                     <Info style={{ width: 12, height: 12 }} />
@@ -451,7 +451,7 @@ function HomePage() {
                                     Safety requirements to guarantee a seamless, direct connection experience for both parties.
                                 </p>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.25rem' }} className="bento-sub-grid">
+                            <div className="bento-sub-grid">
                                 <div style={{ background: 'var(--bg-secondary)', padding: '1.125rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                                         <span style={{ fontSize: '0.78rem', fontWeight: 800, background: 'var(--primary-light)', color: 'var(--primary)', width: 20, height: 20, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>1</span>
@@ -631,7 +631,15 @@ function App() {
                 </motion.div>
             )}
             {!showSplash && loading && (
-                <div style={{ minHeight: '100vh', background: 'var(--bg-body)' }} />
+                <div style={{ minHeight: '100vh', background: 'var(--bg-body)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <div className="spinner" style={{ marginBottom: '1.25rem', width: '48px', height: '48px', borderWidth: '3px' }}></div>
+                    <h3 style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: 800, marginBottom: '0.5rem' }}>
+                        Waking up the server...
+                    </h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '350px', textAlign: 'center', lineHeight: 1.5, fontWeight: 500 }}>
+                        If this is your first visit in a while, it may take a few moments to establish a secure connection.
+                    </p>
+                </div>
             )}
         </LayoutGroup>
     );

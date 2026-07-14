@@ -533,7 +533,7 @@ function SearchDonors() {
                     style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.75rem', marginBottom: '2rem', boxShadow: 'var(--shadow-md)' }}>
 
                     <form onSubmit={handleSearch}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto auto', gap: '0.875rem', alignItems: 'flex-end' }}>
+                        <div className="search-filter-grid">
                             {/* Blood Group */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                                 <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>

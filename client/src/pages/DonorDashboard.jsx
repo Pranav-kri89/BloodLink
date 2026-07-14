@@ -373,7 +373,7 @@ function DonorDashboard() {
                                                 <p style={{ margin: '0 0 10px', color: 'var(--text-muted)', fontSize: '0.85rem' }}>{notif.message}</p>
 
                                                 {(notif.hospital || notif.city || notif.patientName || notif.unitsNeeded || notif.requesterName) && (
-                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '0.8rem', background: isReward ? 'rgba(255, 255, 255, 0.5)' : 'var(--bg-secondary)', borderRadius: '8px', padding: '10px' }}>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '6px', fontSize: '0.8rem', background: isReward ? 'rgba(255, 255, 255, 0.5)' : 'var(--bg-secondary)', borderRadius: '8px', padding: '10px' }}>
                                                         {notif.hospital && <div><span style={{ color: 'var(--text-muted)' }}>Hospital:</span> <strong>{notif.hospital}</strong></div>}
                                                         {notif.city && <div><span style={{ color: 'var(--text-muted)' }}>City:</span> <strong>{notif.city}</strong></div>}
                                                         {notif.patientName && <div><span style={{ color: 'var(--text-muted)' }}>Patient:</span> <strong>{notif.patientName}</strong></div>}
@@ -467,7 +467,7 @@ function DonorDashboard() {
                     ) : myRequests.length === 0 ? (
                         <p style={{ color: 'var(--text-muted)' }}>You haven't requested any blood. If you need blood, go to the Search Donors page to create a request.</p>
                     ) : (
-                        <div className="table-wrapper" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                        <div className="table-wrapper" style={{ maxHeight: '400px', overflow: 'auto' }}>
                             <table style={{ position: 'relative' }}>
                                 <thead style={{ position: 'sticky', top: 0, zIndex: 1, backgroundColor: 'var(--bg-card)' }}>
                                     <tr>
